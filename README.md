@@ -135,6 +135,14 @@ Launch training with seed 42 on GPU 0.
 ```console
 (robodiff)[diffusion_policy]$ python train.py --config-dir=. --config-name=image_pusht_diffusion_policy_cnn.yaml training.seed=42 training.device=cuda:0 hydra.run.dir='data/outputs/${now:%Y.%m.%d}/${now:%H.%M.%S}_${name}_${task_name}'
 ```
+Resume training with seed 42 on GPU 0.
+```bash
+python train.py \
+--config-dir=. \
+--config-name=image_pusht_diffusion_policy_cnn.yaml \
+training.seed=42 training.device=cuda:0 \
+hydra.run.dir='data/outputs/2024.09.13/10.17.20_train_diffusion_unet_hybrid_pusht_image'
+```
 
 This will create a directory in format `data/outputs/yyyy.mm.dd/hh.mm.ss_<method_name>_<task_name>` where configs, logs and checkpoints are written to. The policy will be evaluated every 50 epochs with the success rate logged as `test/mean_score` on wandb, as well as videos for some rollouts.
 ```console

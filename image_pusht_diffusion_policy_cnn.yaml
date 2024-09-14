@@ -60,9 +60,9 @@ policy:
   - 84
   diffusion_step_embed_dim: 128
   down_dims:
+  - 256
   - 512
   - 1024
-  - 2048
   eval_fixed_crop: true
   horizon: 16
   kernel_size: 5
@@ -158,7 +158,7 @@ task:
         type: rgb
 task_name: pusht_image
 training:
-  checkpoint_every: 50
+  checkpoint_every: 20
   debug: false
   device: cuda:0
   gradient_accumulate_every: 1
@@ -168,7 +168,7 @@ training:
   max_val_steps: null
   num_epochs: 3050
   resume: true
-  rollout_every: 50
+  rollout_every: 20
   sample_every: 5
   seed: 42
   tqdm_interval_sec: 1.0
