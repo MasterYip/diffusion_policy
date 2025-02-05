@@ -132,11 +132,22 @@ Activate conda environment and login to [wandb](https://wandb.ai) (if you haven'
 ```
 
 Launch training with seed 42 on GPU 0.
-```console
-(robodiff)[diffusion_policy]$ python train.py --config-dir=. --config-name=image_pusht_diffusion_policy_cnn.yaml training.seed=42 training.device=cuda:0 hydra.run.dir='data/outputs/${now:%Y.%m.%d}/${now:%H.%M.%S}_${name}_${task_name}'
+```bash
+python train.py \
+--config-dir=. --config-name=image_pusht_diffusion_policy_cnn.yaml \
+training.seed=42 training.device=cuda:0 \
+hydra.run.dir='data/outputs/${now:%Y.%m.%d}/${now:%H.%M.%S}_${name}_${task_name}'
+###
+python train.py \
+--config-dir=. --config-name=low_dim_block_pushing_diffusion_policy_cnn.yaml \
+training.seed=42 training.device=cuda:0 \
+hydra.run.dir='data/outputs/${now:%Y.%m.%d}/${now:%H.%M.%S}_${name}_${task_name}'
 ```
 Resume training with seed 42 on GPU 0.
 ```bash
+cd ~/Documents/CodeSpace/Python/diffusion_policy
+conda activate robodiff
+###
 python train.py \
 --config-dir=. \
 --config-name=image_pusht_diffusion_policy_cnn.yaml \
