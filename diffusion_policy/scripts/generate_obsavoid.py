@@ -13,21 +13,20 @@ import numpy as np
 import random
 from tqdm import tqdm
 from diffusion_policy.common.replay_buffer import ReplayBuffer
-from diffusion_policy.env.obsavoid.obsavoid_env import sine_bound_env
+from diffusion_policy.env.obsavoid.obsavoid_env import randpath_bound_env
 
 
 @click.command()
 @click.option('-o', '--output', required=True, default="data/obsavoid/obsavoid_replay.zarr")
 @click.option('-n', '--n_episodes', default=1000)
-@click.option('-e', '--episode_steps', default=10000)
+@click.option('-e', '--episode_steps', default=1000)
 @click.option('-c', '--chunk_length', default=-1)
 def main(output, n_episodes, episode_steps, chunk_length):
 
     buffer = ReplayBuffer.create_empty_numpy()
     
     for i in tqdm(range(n_episodes)):
-        print(i)
-        env = sine_bound_env(False, 
+        env = randpath_bound_env(False, 
                              y=random.uniform(-1, 1), 
                              v=random.uniform(-1, 1), 
                              env_step=0.01)

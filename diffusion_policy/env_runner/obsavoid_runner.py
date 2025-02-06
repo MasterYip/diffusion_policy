@@ -3,7 +3,7 @@ import torch
 from diffusion_policy.policy.base_lowdim_policy import BaseLowdimPolicy
 from diffusion_policy.common.pytorch_util import dict_apply
 from diffusion_policy.env_runner.base_lowdim_runner import BaseLowdimRunner
-from diffusion_policy.env.obsavoid.obsavoid_env import sine_bound_env, increase_bound_env
+from diffusion_policy.env.obsavoid.obsavoid_env import sine_bound_env, increase_bound_env, randpath_bound_env
 
 class ObsAvoidRunner(BaseLowdimRunner):
     def __init__(self,
@@ -14,8 +14,9 @@ class ObsAvoidRunner(BaseLowdimRunner):
         ):
         super().__init__(output_dir)
 
-        self.env = sine_bound_env(True, y=0, v=0, env_step=0.01)
+        # self.env = sine_bound_env(True, y=0, v=0, env_step=0.01)
         # self.env = increase_bound_env(True, y=0, v=0, env_step=0.01)
+        # self.env = randpath_bound_env(True, y=0, v=0, env_step=0.01)
         self.n_obs_steps = n_obs_steps
         self.n_action_steps = n_action_steps
         self.max_steps = max_steps
@@ -25,7 +26,7 @@ class ObsAvoidRunner(BaseLowdimRunner):
         device = policy.device
         dtype = policy.dtype
 
-        env = self.env
+        env = randpath_bound_env(True, y=0, v=0, env_step=0.01)
         obs = env.get_observation()
         obs_hist = [obs for _ in range(self.n_obs_steps)]
         ema_reward = 0

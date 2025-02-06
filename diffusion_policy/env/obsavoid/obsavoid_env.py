@@ -21,6 +21,9 @@ class Obstacle1dEnv(object):
         self.y_hist = []
         self.hist_len = 1000
 
+        # Default Obs Point Param
+        self.obs_pt_param = [6, 5, 0.05, 0.3]
+
         # Acc Scaling: scaling for acceleration action input
         self.acc_scale = 100
         # Vel Scaling: scaling for velocity observation output
@@ -98,7 +101,8 @@ class Obstacle1dEnv(object):
         return self.p*(target-self.y) + self.d*(-self.v)
 
     # Dataset
-    def get_obspts(self, nt=6, ny=5, step=0.03, stepy=0.2):
+    def get_obspts(self):
+        nt, ny, step, stepy = self.obs_pt_param
         if step is None:
             step = self.env_step
         obspts = []
@@ -107,16 +111,14 @@ class Obstacle1dEnv(object):
         return obspts
     
     
-    def get_observation(self, nt=6, ny=5, step=0.01, stepy=0.1):
+    def get_observation(self):
         """Observation is state(2) + sdf_obs
         """
-        if step is None:
-            step = self.env_step
         state = [self.y, self.v/self.vel_scale]
         
         # next n sdf_value
         # sdf_obs = [self.sdf_value(self.y, self.t + i*step) for i in range(n)]
-        sdf_obs = [self.sdf_value(y, t) for y, t in self.get_obspts(nt, ny, step, stepy)]
+        sdf_obs = [self.sdf_value(y, t) for y, t in self.get_obspts()]
         return state + sdf_obs
 
     def get_action(self):
@@ -157,15 +159,30 @@ def sine_bound_env(vis=True, y=0.0, v=0.0, env_step=0.01):
     # env.add_boundfunc(lambda t: 0.5*np.sin(15*t)-0.2-1.5, lambda t: 0.5*np.sin(15*t)+0.2-1.5)
     return env
 
-
 def increase_bound_env(vis=True, y=0, v=0, env_step=0.01):
     env = Obstacle1dEnv(y=y, v=v, env_step=env_step, vis=vis)
     slope = 1.0
     env.add_boundfunc(lambda t: slope*t-0.2, lambda t: slope*t+0.2+0.1*np.sin(10*t))
     return env
 
-def test_sine_bound_env():
-    env = sine_bound_env()
+def randpath_bound_env(vis=True, y=0, v=0, env_step=0.01):
+    env = Obstacle1dEnv(y=y, v=v, env_step=env_step, vis=vis)
+    slope_abs_bd = 1.0
+    coef_abs_bd = [1.0, 1.0, 0.5, 0.5, 0.3, 0.2,0,0,0,0,0,0,0,0,0.1,0.1]
+    width_bd = [0.6, 1.5]
+    slope = (np.random.rand()-0.5)*2*slope_abs_bd
+    coef = [(np.random.rand()-0.5)*2*coef_abs_bd[i//2] for i in range(len(coef_abs_bd)*2)]
+    width = np.random.rand()*(width_bd[1]-width_bd[0])+width_bd[0]
+    def func(t):
+        res = slope*t
+        for i in range(len(coef_abs_bd)):
+            res += coef[i*2]*np.sin((i+1)*t) + coef[i*2+1]*np.cos((i+1)*t)
+        return res
+    env.add_boundfunc(lambda t: func(t)-width/2, lambda t: func(t)+width/2)
+    return env
+
+def test_rand_bound_env():
+    env = randpath_bound_env()
     # stop when ctrl+c
     while True:
         num = 30
@@ -177,8 +194,8 @@ def test_sine_bound_env():
         T = [pt[1] for pt in pts]
         Y = [pt[0] for pt in pts]
         env.vis_scatter(T, Y)
-        print(env.sdf_value(env.y))
+        # print(env.sdf_value(env.y))
         time.sleep(env.env_step)
         
 if __name__ == "__main__":
-    test_sine_bound_env()
+    test_rand_bound_env()
