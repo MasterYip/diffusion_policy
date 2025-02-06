@@ -133,6 +133,9 @@ class Obstacle1dEnv(object):
         self.ax.scatter(X, Y, s=1)
         plt.pause(0.00001)
 
+    def end(self):
+        if self.vis:
+            plt.close()
 
 def sine_bound_env(vis=True, y=0.0, v=0.0, env_step=0.01):
     env = Obstacle1dEnv(y=y, v=v, env_step=env_step, vis=vis)
@@ -144,5 +147,6 @@ def sine_bound_env(vis=True, y=0.0, v=0.0, env_step=0.01):
 
 def increase_bound_env(vis=True, y=0, v=0, env_step=0.01):
     env = Obstacle1dEnv(y=y, v=v, env_step=env_step, vis=vis)
-    env.add_boundfunc(lambda t: 0.3*t-0.2, lambda t: 0.3*t+0.2+0.1*np.sin(10*t))
+    slope = 1.0
+    env.add_boundfunc(lambda t: slope*t-0.2, lambda t: slope*t+0.2+0.1*np.sin(10*t))
     return env
