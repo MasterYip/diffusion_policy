@@ -100,22 +100,22 @@ task:
     zarr_path: data/obs_avoid
   env_runner:
     _target_: diffusion_policy.env_runner.obsavoid_runner.ObsAvoidRunner
-    agent_keypoints: false
-    fps: 10
-    keypoint_visible_rate: 1.0
-    legacy_test: true
-    max_steps: 300
+    # agent_keypoints: false
+    # fps: 10
+    # keypoint_visible_rate: 1.0
+    # legacy_test: true
+    # max_steps: 300
     n_action_steps: 8
-    n_envs: null
-    n_latency_steps: 0
+    # n_envs: null
+    # n_latency_steps: 0
     n_obs_steps: 2
-    n_test: 50
-    n_test_vis: 4
-    n_train: 6
-    n_train_vis: 2
-    past_action: false
-    test_start_seed: 100000
-    train_start_seed: 0
+    # n_test: 50
+    # n_test_vis: 4
+    # n_train: 6
+    # n_train_vis: 2
+    # past_action: false
+    # test_start_seed: 100000
+    # train_start_seed: 0
   keypoint_dim: 0 # FIXME?
   name: obsavoid_lowdim
   obs_dim: 8
