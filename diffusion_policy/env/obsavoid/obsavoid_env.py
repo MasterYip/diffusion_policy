@@ -1,5 +1,7 @@
 
+from typing import overload
 import numpy as np
+import time
 from matplotlib import pyplot as plt
 
 class Obstacle1dEnv(object):
@@ -96,14 +98,25 @@ class Obstacle1dEnv(object):
         return self.p*(target-self.y) + self.d*(-self.v)
 
     # Dataset
-    def get_observation(self, n=6, step=None):
+    def get_obspts(self, nt=6, ny=5, step=0.03, stepy=0.2):
+        if step is None:
+            step = self.env_step
+        obspts = []
+        for i in range(ny):
+            obspts += [[self.y + ((ny-1)/2-i)*stepy, self.t + j*step] for j in range(nt)]
+        return obspts
+    
+    
+    def get_observation(self, nt=6, ny=5, step=0.01, stepy=0.1):
         """Observation is state(2) + sdf_obs
         """
         if step is None:
             step = self.env_step
         state = [self.y, self.v/self.vel_scale]
+        
         # next n sdf_value
-        sdf_obs = [self.sdf_value(self.y, self.t + i*step) for i in range(n)]
+        # sdf_obs = [self.sdf_value(self.y, self.t + i*step) for i in range(n)]
+        sdf_obs = [self.sdf_value(y, t) for y, t in self.get_obspts(nt, ny, step, stepy)]
         return state + sdf_obs
 
     def get_action(self):
@@ -128,9 +141,9 @@ class Obstacle1dEnv(object):
         self.ax.set_xlim(self.t-self.vis_time_window, self.t+self.vis_time_window)
         plt.pause(0.00001)
 
-    def vis_scatter(self, X, Y):
+    def vis_scatter(self, T, Y):
         # scatter marker size is 1
-        self.ax.scatter(X, Y, s=1)
+        self.ax.scatter(T, Y, s=1)
         plt.pause(0.00001)
 
     def end(self):
@@ -150,3 +163,22 @@ def increase_bound_env(vis=True, y=0, v=0, env_step=0.01):
     slope = 1.0
     env.add_boundfunc(lambda t: slope*t-0.2, lambda t: slope*t+0.2+0.1*np.sin(10*t))
     return env
+
+def test_sine_bound_env():
+    env = sine_bound_env()
+    # stop when ctrl+c
+    while True:
+        num = 30
+        fake_noise_scatter_X = np.linspace(env.t, env.t+0.3, num)
+        fake_noise_scatter_Y = env.y + np.random.randn(num)*0.1
+        env.step_env(acc=env.get_noised_action()[0])
+        # env.vis_scatter(fake_noise_scatter_X, fake_noise_scatter_Y)
+        pts = env.get_obspts()
+        T = [pt[1] for pt in pts]
+        Y = [pt[0] for pt in pts]
+        env.vis_scatter(T, Y)
+        print(env.sdf_value(env.y))
+        time.sleep(env.env_step)
+        
+if __name__ == "__main__":
+    test_sine_bound_env()

@@ -1,6 +1,6 @@
 name: obsavoid_lowdim
 
-obs_dim: 8 # 9*2 keypoints + 2 state
+obs_dim: 32 # 5*6 keypoints + 2 state
 action_dim: 1
 # keypoint_dim: 2
 
@@ -25,7 +25,7 @@ env_runner:
 
 dataset:
   _target_: diffusion_policy.dataset.obsavoid_dataset.ObsAvoidDataset
-  zarr_path: data/obs_avoid
+  zarr_path: data/obsavoid/obsavoid_replay.zarr
   horizon: ${horizon}
   pad_before: ${eval:'${n_obs_steps}-1+${n_latency_steps}'}
   pad_after: ${eval:'${n_action_steps}-1'}

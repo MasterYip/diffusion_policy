@@ -17,7 +17,7 @@ from diffusion_policy.env.obsavoid.obsavoid_env import sine_bound_env
 
 
 @click.command()
-@click.option('-o', '--output', required=True)
+@click.option('-o', '--output', required=True, default="data/obsavoid/obsavoid_replay.zarr")
 @click.option('-n', '--n_episodes', default=1000)
 @click.option('-e', '--episode_steps', default=10000)
 @click.option('-c', '--chunk_length', default=-1)
