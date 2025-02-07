@@ -18,19 +18,19 @@ from diffusion_policy.env.obsavoid.obsavoid_env import randpath_bound_env, sine_
 
 @click.command()
 @click.option('-o', '--output', required=True, default="data/obsavoid/obsavoid_replay.zarr")
-@click.option('-n', '--n_episodes', default=1000)
-@click.option('-e', '--episode_steps', default=1000)
+@click.option('-n', '--n_episodes', default=500)
+@click.option('-e', '--episode_steps', default=150)
 @click.option('-c', '--chunk_length', default=-1)
-@click.option('-v', '--visualize', default=False)
+@click.option('-v', '--visualize', default=True)
 def main(output, n_episodes, episode_steps, chunk_length, visualize):
 
     buffer = ReplayBuffer.create_empty_numpy()
-    
+
     for i in tqdm(range(n_episodes)):
-        env = randpath_bound_env(visualize, 
-                             y=random.uniform(-1, 1), 
-                             v=random.uniform(-1, 1), 
-                             env_step=0.01)
+        env = randpath_bound_env(visualize,
+                                 y=None,
+                                 v=None,
+                                 env_step=0.01)
         obs_history = list()
         action_history = list()
         for i in range(episode_steps):
@@ -45,7 +45,7 @@ def main(output, n_episodes, episode_steps, chunk_length, visualize):
             if (visualize and i % 100 == 0):
                 env.vis_step()
         env.end()
-        
+
         obs_history = np.array(obs_history)
         action_history = np.array(action_history)
 
@@ -54,8 +54,9 @@ def main(output, n_episodes, episode_steps, chunk_length, visualize):
             'action': action_history
         }
         buffer.add_episode(episode)
-    
+
     buffer.save_to_path(output, chunk_length=chunk_length)
-        
+
+
 if __name__ == '__main__':
     main()

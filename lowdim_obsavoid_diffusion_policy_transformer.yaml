@@ -62,7 +62,7 @@ policy:
     horizon: 10
     input_dim: 1 # Action input
     n_cond_layers: 0
-    n_emb: 128 # Embedding dimension
+    n_emb: 256 # Embedding dimension
     n_head: 4 # Attention heads
     n_layer: 8 # Transformer layers (attention + feedforward)
     n_obs_steps: 2
