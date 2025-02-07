@@ -15,6 +15,16 @@ training.seed=42 training.device=cuda:0 \
 hydra.run.dir='data/outputs/${now:%Y.%m.%d}/${now:%H.%M.%S}_${name}_${task_name}'
 ```
 
+Continue training
+
+```bash
+python train.py \
+--config-dir=. \
+--config-name=lowdim_obsavoid_diffusion_policy_transformer.yaml \
+training.seed=42 training.device=cuda:0 \
+hydra.run.dir='data/outputs/2025.02.07/14.47.54_train_diffusion_transformer_lowdim_obsavoid_lowdim'
+```
+
 Run the evaluation script:
 
 ```bash
