@@ -55,6 +55,8 @@ class ObsAvoidRunner(BaseLowdimRunner):
             env.step_env(acc=np_action_dict["action"][0,0,0])
             ema_reward = env.get_reward() * (1-ema_coeff) + ema_reward * ema_coeff
             
+            if abs(env.y) > 10:
+                break
             # # print obs, precision .3f
             # formatted_numbers = ["{:.3f}".format(num) for num in obs]
             # print(formatted_numbers + [str(env.get_action()[0]), str(env.get_reward())])

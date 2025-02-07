@@ -50,7 +50,7 @@ class Obstacle1dEnv(object):
     def add_boundfunc(self, lb_fun, ub_fun):
         self.bounds.append((lb_fun, ub_fun))
 
-    def step_env(self, acc=0.0):
+    def step_env(self, acc=0.0, vis=None):
         """Step env
         Args:
             acc (float, optional): Acc scaled. Defaults to 0.0.
@@ -61,7 +61,7 @@ class Obstacle1dEnv(object):
         self.y_hist.append(self.y)
         if len(self.y_hist) > self.hist_len:
             self.y_hist.pop(0)
-        if self.vis:
+        if vis!=False and self.vis:
             self.vis_step()
 
     def step_env_y(self, y):
