@@ -22,7 +22,7 @@ class ObsAvoidRunner(BaseLowdimRunner):
         self.n_action_steps = n_action_steps
         self.max_steps = max_steps
 
-    def run(self, policy: BaseLowdimPolicy):
+    def run(self, policy: BaseLowdimPolicy, use_acc=False):
         device = policy.device
         dtype = policy.dtype
 
@@ -52,7 +52,10 @@ class ObsAvoidRunner(BaseLowdimRunner):
                                         lambda x: x.detach().to('cpu').numpy())
 
             # env.step_env(acc=env.get_action()[0])
-            env.step_env(acc=np_action_dict["action"][0, 0, 0])
+            if use_acc:
+                env.step_env(acc=np_action_dict["action"][0, 0, 0])
+            else:
+                env.step_env_y(y=np_action_dict["action"][0, 0, 0])
             ema_reward = env.get_reward() * (1-ema_coeff) + ema_reward * ema_coeff
 
             if abs(env.y) > 10:

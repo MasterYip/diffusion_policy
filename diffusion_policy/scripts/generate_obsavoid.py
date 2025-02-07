@@ -21,8 +21,9 @@ from diffusion_policy.env.obsavoid.obsavoid_env import randpath_bound_env, sine_
 @click.option('-n', '--n_episodes', default=500)
 @click.option('-e', '--episode_steps', default=150)
 @click.option('-c', '--chunk_length', default=-1)
+@click.option('--use_acceleration', default=False)
 @click.option('-v', '--visualize', default=True)
-def main(output, n_episodes, episode_steps, chunk_length, visualize):
+def main(output, n_episodes, episode_steps, chunk_length, use_acceleration, visualize):
 
     buffer = ReplayBuffer.create_empty_numpy()
 
@@ -38,7 +39,7 @@ def main(output, n_episodes, episode_steps, chunk_length, visualize):
             action = env.get_action()
             # reward = env.get_reward()
             obs_history.append(observation)
-            action_history.append(action)
+            action_history.append(action if use_acceleration else [env.y])
             # rewards.append(reward)
             env.step_env(acc=action[0], vis=False)
             # Visualize (per 100 steps)
