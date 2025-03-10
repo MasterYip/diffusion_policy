@@ -31,6 +31,9 @@ Run the evaluation script:
 python eval.py --checkpoint data/obsavoid.ckpt --output_dir data/obsavoid_output --device cuda:0
 ```
 
+Generate Dataset:
+Excute `diffusion_policy/scripts/generate_obsavoid.py`
+
 **PushT**
 
 Launch training with seed 42 on GPU 0.
