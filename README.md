@@ -22,8 +22,9 @@ python train.py \
 --config-dir=. \
 --config-name=lowdim_obsavoid_diffusion_policy_transformer.yaml \
 training.seed=42 training.device=cuda:0 \
-hydra.run.dir='data/outputs/2025.02.07/14.47.54_train_diffusion_transformer_lowdim_obsavoid_lowdim'
+hydra.run.dir='data/outputs/2025.03.19/19.17.42_train_diffusion_transformer_lowdim_obsavoid_lowdim'
 ```
+> Note: Comment out `val_every` to avoid validation during training.
 
 Run the evaluation script:
 
@@ -33,6 +34,7 @@ python eval.py --checkpoint data/obsavoid.ckpt --output_dir data/obsavoid_output
 
 Generate Dataset:
 Excute `diffusion_policy/scripts/generate_obsavoid.py`
+
 
 **PushT**
 

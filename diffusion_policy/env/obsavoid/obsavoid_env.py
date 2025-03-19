@@ -82,6 +82,19 @@ class Obstacle1dEnv(object):
         if self.vis:
             self.vis_step()
 
+    def step_env_dy(self, dy):
+        """Step env with dy
+        Args:
+            dy (float): dy
+        """
+        self.t += self.env_step
+        self.y += float(dy)
+        self.y_hist.append(self.y)
+        if len(self.y_hist) > self.hist_len:
+            self.y_hist.pop(0)
+        if self.vis:
+            self.vis_step()
+
     # Reference
     def sdf_value(self, y, t=None):
         values = []
@@ -175,7 +188,7 @@ def increase_bound_env(vis=True, y=0, v=0, env_step=0.01):
 def randpath_bound_env(vis=True, y=None, v=None, env_step=0.01):
 
     if y is None:
-        y_bd = [-5, 5]
+        y_bd = [-0, 0]
         y = np.random.rand()*(y_bd[1]-y_bd[0])+y_bd[0]
     if v is None:
         v_bd = [-5, 5]
@@ -189,8 +202,10 @@ def randpath_bound_env(vis=True, y=None, v=None, env_step=0.01):
     # d = 10**(np.random.rand()*(d_bd[1]-d_bd[0])+d_bd[0])
     # env.set_pd(p, d)
 
-    wn_exp_bd = [0.8, 2]
-    zeta_bd = [0.3, 1.5]
+    # wn_exp_bd = [0.8, 2]
+    # zeta_bd = [0.3, 1.5]
+    wn_exp_bd = [0.8, 1.5]
+    zeta_bd = [0.4, 1.5]
     wn = 10**(np.random.rand()*(wn_exp_bd[1]-wn_exp_bd[0])+wn_exp_bd[0])
     zeta = np.random.rand()*(zeta_bd[1]-zeta_bd[0])+zeta_bd[0]
     p = wn**2
@@ -216,8 +231,10 @@ def randpath_bound_env(vis=True, y=None, v=None, env_step=0.01):
 
 
 def test_rand_bound_env():
+    import numpy as np
     while True:
         env = randpath_bound_env()
+        last_y = 0
         # stop when ctrl+c
         for i in range(100):
             # num = 30
@@ -232,6 +249,25 @@ def test_rand_bound_env():
             env.vis_scatter(T, Y)
             # print(env.sdf_value(env.y))
             # time.sleep(env.env_step)
+
+            # # Print obs, action
+            # print("obs: ", env.get_observation())
+            # print("action: ", env.get_action())
+            # print("action_y: ", env.y)
+            # reserve up to 2 decimal places
+            # print("obs", ["{:.2f}".format(num) for num in env.get_observation()])
+            obs = env.get_observation()
+            print("obs_y: ", ["{:.2f}".format(obs[0])])
+            print("obs_v: ", ["{:.2f}".format(obs[1])])
+            print("dy: ", ["{:.2f}".format(env.y - last_y)])
+            print("action", ["{:.2f}".format(num) for num in env.get_action()])
+            sdf_obs = np.array(obs[2:]).reshape(6, 5)
+            print("sdf_obs: ")
+            for row in sdf_obs:
+                print(["{:.2f}".format(num) for num in row])
+            # print("action_y: ", ["{:.2f}".format(env.y)])
+            last_y = env.y
+            plt.pause(0.1)
         env.end()
 
 

@@ -22,7 +22,7 @@ class ObsAvoidRunner(BaseLowdimRunner):
         self.n_action_steps = n_action_steps
         self.max_steps = max_steps
 
-    def run(self, policy: BaseLowdimPolicy, use_acc=True):
+    def run(self, policy: BaseLowdimPolicy, ctrl_mode='dy'):
         device = policy.device
         dtype = policy.dtype
 
@@ -51,11 +51,18 @@ class ObsAvoidRunner(BaseLowdimRunner):
             np_action_dict = dict_apply(action_dict,
                                         lambda x: x.detach().to('cpu').numpy())
 
-            # env.step_env(acc=env.get_action()[0])
-            if use_acc:
+            print("action:", [actframe[0] for actframe in np_action_dict["action"][0]])
+            print("action_pred", [actframe[0] for actframe in np_action_dict["action_pred"][0]])
+
+            if ctrl_mode == 'acc':
                 env.step_env(acc=np_action_dict["action"][0, 0, 0])
-            else:
+            elif ctrl_mode == 'y':
                 env.step_env_y(y=np_action_dict["action"][0, 0, 0])
+            elif ctrl_mode == 'dy':
+                env.step_env_dy(dy=np_action_dict["action"][0, 0, 0])
+            else:
+                raise ValueError("Invalid ctrl_mode")
+
             ema_reward = env.get_reward() * (1-ema_coeff) + ema_reward * ema_coeff
 
             if abs(env.y) > 10:

@@ -17,13 +17,13 @@ from diffusion_policy.env.obsavoid.obsavoid_env import randpath_bound_env, sine_
 
 
 @click.command()
-@click.option('-o', '--output', required=True, default="data/obsavoid/obsavoid_replay.zarr")
+@click.option('-o', '--output', required=True, default="data/obsavoid/obsavoid_replay_dyctrl.zarr")
 @click.option('-n', '--n_episodes', default=500)
 @click.option('-e', '--episode_steps', default=150)
 @click.option('-c', '--chunk_length', default=-1)
-@click.option('--use_acceleration', default=False)
+@click.option('--ctrl_mode', default='dy', type=click.Choice(['dy', 'y', 'acc']))
 @click.option('-v', '--visualize', default=True)
-def main(output, n_episodes, episode_steps, chunk_length, use_acceleration, visualize):
+def main(output, n_episodes, episode_steps, chunk_length, ctrl_mode, visualize):
 
     buffer = ReplayBuffer.create_empty_numpy()
 
@@ -34,12 +34,22 @@ def main(output, n_episodes, episode_steps, chunk_length, use_acceleration, visu
                                  env_step=0.01)
         obs_history = list()
         action_history = list()
+        last_y = env.y
         for i in range(episode_steps):
             observation = env.get_observation()
             action = env.get_action()
             # reward = env.get_reward()
             obs_history.append(observation)
-            action_history.append(action if use_acceleration else [env.y])
+            # action_history.append(action if ctrl_mode else [env.y])
+            if ctrl_mode == 'dy':
+                action_history.append([env.y - last_y])
+            elif ctrl_mode == 'y':
+                action_history.append([env.y])
+            elif ctrl_mode == 'acc':
+                action_history.append(action)
+            else:
+                raise ValueError("Invalid ctrl_mode")
+            last_y = env.y
             # rewards.append(reward)
             env.step_env(acc=action[0], vis=False)
             # Visualize (per 100 steps)
