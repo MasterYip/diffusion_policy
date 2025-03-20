@@ -52,7 +52,6 @@ class ObsAvoidRunner(BaseLowdimRunner):
                                         lambda x: x.detach().to('cpu').numpy())
 
             print("action:", [actframe[0] for actframe in np_action_dict["action"][0]])
-            print("action_pred", [actframe[0] for actframe in np_action_dict["action_pred"][0]])
 
             if ctrl_mode == 'acc':
                 env.step_env(acc=np_action_dict["action"][0, 0, 0])

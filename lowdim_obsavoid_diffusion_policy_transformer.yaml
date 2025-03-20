@@ -27,7 +27,7 @@ keypoint_visible_rate: 1.0 # FIXME: unused
 logging:
   group: null
   id: null
-  mode: online
+  mode: offline
   name: 2023.01.16-20.11.42_train_diffusion_transformer_lowdim_obsavoid_lowdim
   project: diffusion_policy_debug
   resume: true
@@ -80,7 +80,8 @@ policy:
     beta_start: 0.0001
     clip_sample: true
     num_train_timesteps: 100
-    prediction_type: epsilon
+    # prediction_type: epsilon
+    prediction_type: sample
     variance_type: fixed_small
   num_inference_steps: 100
   obs_as_cond: true
@@ -131,7 +132,7 @@ training:
   max_val_steps: null
   num_epochs: 8000
   resume: true
-  rollout_every: 10
+  rollout_every: 5
   sample_every: 5
   seed: 42
   tqdm_interval_sec: 1.0

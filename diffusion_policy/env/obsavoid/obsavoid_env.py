@@ -261,10 +261,13 @@ def test_rand_bound_env():
             print("obs_v: ", ["{:.2f}".format(obs[1])])
             print("dy: ", ["{:.2f}".format(env.y - last_y)])
             print("action", ["{:.2f}".format(num) for num in env.get_action()])
-            sdf_obs = np.array(obs[2:]).reshape(6, 5)
+            
+            sdf_obs = np.array(obs[2:]).reshape(5, 6)
             print("sdf_obs: ")
             for row in sdf_obs:
                 print(["{:.2f}".format(num) for num in row])
+                # print(["○" if num > 0 else "●" for num in row])
+            
             # print("action_y: ", ["{:.2f}".format(env.y)])
             last_y = env.y
             plt.pause(0.1)
