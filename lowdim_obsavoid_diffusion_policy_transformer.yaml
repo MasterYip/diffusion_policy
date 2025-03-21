@@ -98,7 +98,7 @@ task:
     pad_before: 1
     seed: 42
     val_ratio: 0.02
-    zarr_path: data/obsavoid/obsavoid_replay_dyctrl.zarr
+    zarr_path: data/obsavoid/obsavoid_replay.zarr
   env_runner:
     _target_: diffusion_policy.env_runner.obsavoid_runner.ObsAvoidRunner
     # agent_keypoints: false
@@ -132,7 +132,7 @@ training:
   max_val_steps: null
   num_epochs: 8000
   resume: true
-  rollout_every: 5
+  rollout_every: 30
   sample_every: 5
   seed: 42
   tqdm_interval_sec: 1.0

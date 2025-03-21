@@ -26,7 +26,7 @@ class Obstacle1dEnv(object):
         self.obs_pt_param = [6, 5, 0.05, 0.3]
 
         # Acc Scaling: scaling for acceleration action input
-        self.acc_scale = 100
+        self.acc_scale = 1
         # Vel Scaling: scaling for velocity observation output
         self.vel_scale = 10
         self.dy_scale = 0.001
@@ -213,8 +213,8 @@ def randpath_bound_env(vis=True, y=None, v=None, env_step=0.01):
 
     # wn_exp_bd = [0.8, 2]
     # zeta_bd = [0.3, 1.5]
-    wn_exp_bd = [0.8, 1.8]
-    zeta_bd = [0.5, 1.1]
+    wn_exp_bd = [1.3, 1.8]
+    zeta_bd = [0.6, 1.0]
     wn = 10**(np.random.rand()*(wn_exp_bd[1]-wn_exp_bd[0])+wn_exp_bd[0])
     zeta = np.random.rand()*(zeta_bd[1]-zeta_bd[0])+zeta_bd[0]
     p = wn**2
@@ -223,8 +223,8 @@ def randpath_bound_env(vis=True, y=None, v=None, env_step=0.01):
     print("wn: ", wn, "zeta: ", zeta)
 
     slope_abs_bd = 1.0
-    # coef_abs_bd = [1.0, 1.0, 0.5, 0.5, 0.3, 0.2, 0, 0, 0, 0, 0, 0, 0, 0, 0.1, 0.1]
-    coef_abs_bd = [1.0, 1.0, 0.5, 0.5]
+    coef_abs_bd = [1.0, 1.0, 0.5, 0.5, 0.3, 0.5, 0, 0.4, 0, 0.3, 0, 0, 0, 0, 0.1, 0.1]
+    # coef_abs_bd = [1.0, 1.0, 0.5, 0.5]
     width_bd = [0.6, 1.5]
     slope = (np.random.rand()-0.5)*2*slope_abs_bd
     coef = [(np.random.rand()-0.5)*2*coef_abs_bd[i//2] for i in range(len(coef_abs_bd)*2)]

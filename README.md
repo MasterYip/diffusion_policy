@@ -29,7 +29,7 @@ hydra.run.dir='data/outputs/2025.03.20/10.50.50_train_diffusion_transformer_lowd
 Run the evaluation script:
 
 ```bash
-python eval.py --checkpoint data/obsavoid.ckpt --output_dir data/obsavoid_output --device cuda:0
+python eval.py --checkpoint data/obsavoid_acc.ckpt --output_dir data/obsavoid_output --device cuda:0
 ```
 
 Generate Dataset:

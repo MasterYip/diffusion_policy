@@ -19,11 +19,11 @@ import time
 
 
 @click.command()
-@click.option('-o', '--output', required=True, default="data/obsavoid/obsavoid_replay_dyctrl.zarr")
+@click.option('-o', '--output', required=True, default="data/obsavoid/obsavoid_replay.zarr")
 @click.option('-n', '--n_episodes', default=250)
 @click.option('-e', '--episode_steps', default=200)
 @click.option('-c', '--chunk_length', default=-1)
-@click.option('--ctrl_mode', default='dy', type=click.Choice(['dy', 'y', 'acc']))
+@click.option('--ctrl_mode', default='acc', type=click.Choice(['dy', 'y', 'acc']))
 @click.option('-v', '--visualize', default=True)
 def main(output, n_episodes, episode_steps, chunk_length, ctrl_mode, visualize, vis_interval=100):
 
