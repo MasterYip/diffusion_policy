@@ -276,6 +276,7 @@ class TransformerForDiffusion(ModuleAttrMixin):
         timestep: (B,) or int, diffusion step
         cond: (B,T',cond_dim)
         output: (B,T,input_dim)
+        B: batch size, T: time steps, input_dim: input dimension, cond_dim: condition dimension
         """
         # 1. time
         timesteps = timestep
