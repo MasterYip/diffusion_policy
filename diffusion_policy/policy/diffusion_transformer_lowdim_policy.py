@@ -188,7 +188,7 @@ class DiffusionTransformerLowdimPolicy(BaseLowdimPolicy):
             print(name)
             for i in range(tensor.shape[0]):
                 print([f"{tensor[i, j, 0]:.3f}" for j in range(tensor.shape[1])])
-        formatted_tensor_print(batch['action'], "origin action")
+        # formatted_tensor_print(batch['action'], "origin action")
         # formatted_obs_print(batch['obs'])
 
         # normalize input
@@ -251,22 +251,22 @@ class DiffusionTransformerLowdimPolicy(BaseLowdimPolicy):
         loss = reduce(loss, 'b ... -> b (...)', 'mean')
         loss = loss.mean()
 
-        # Debug
-        # unnormalize prediction
-        # pred_unn = self.normalizer['action'].unnormalize(pred)
-        # target_unn = self.normalizer['action'].unnormalize(target)
-        nbatch['action'] = pred
-        unnormalized_batch = self.normalizer.unnormalize(nbatch)
-        pred_unn = unnormalized_batch['action']
-        nbatch['action'] = target
-        unnormalized_batch = self.normalizer.unnormalize(nbatch)
-        target_unn = unnormalized_batch['action']
-        print("============================================")
-        formatted_tensor_print(pred_unn, "pred")
-        formatted_tensor_print(target_unn, "target")
-        formatted_tensor_print(pred_unn - target_unn, "diff")
-        # formatted_tensor_print(loss_mask, "loss_mask")
-        # formatted_tensor_print(condition_mask, "condition_mask")
-        # time.sleep(0.5)
+        # # Debug
+        # # unnormalize prediction
+        # # pred_unn = self.normalizer['action'].unnormalize(pred)
+        # # target_unn = self.normalizer['action'].unnormalize(target)
+        # nbatch['action'] = pred
+        # unnormalized_batch = self.normalizer.unnormalize(nbatch)
+        # pred_unn = unnormalized_batch['action']
+        # nbatch['action'] = target
+        # unnormalized_batch = self.normalizer.unnormalize(nbatch)
+        # target_unn = unnormalized_batch['action']
+        # print("============================================")
+        # formatted_tensor_print(pred_unn, "pred")
+        # formatted_tensor_print(target_unn, "target")
+        # formatted_tensor_print(pred_unn - target_unn, "diff")
+        # # formatted_tensor_print(loss_mask, "loss_mask")
+        # # formatted_tensor_print(condition_mask, "condition_mask")
+        # # time.sleep(0.5)
 
         return loss

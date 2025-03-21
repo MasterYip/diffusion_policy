@@ -80,8 +80,8 @@ policy:
     beta_start: 0.0001
     clip_sample: true
     num_train_timesteps: 100
-    # prediction_type: epsilon
-    prediction_type: sample
+    prediction_type: epsilon
+    # prediction_type: sample
     variance_type: fixed_small
   num_inference_steps: 100
   obs_as_cond: true
@@ -98,14 +98,14 @@ task:
     pad_before: 1
     seed: 42
     val_ratio: 0.02
-    zarr_path: data/obsavoid/obsavoid_replay.zarr
+    zarr_path: data/obsavoid/obsavoid_replay_dyctrl.zarr
   env_runner:
     _target_: diffusion_policy.env_runner.obsavoid_runner.ObsAvoidRunner
     # agent_keypoints: false
     # fps: 10
     # keypoint_visible_rate: 1.0
     # legacy_test: true
-    max_steps: 150
+    max_steps: 50
     n_action_steps: 8
     # n_envs: null
     # n_latency_steps: 0

@@ -29,6 +29,7 @@ class Obstacle1dEnv(object):
         self.acc_scale = 100
         # Vel Scaling: scaling for velocity observation output
         self.vel_scale = 10
+        self.dy_scale = 0.001
 
         # PID
         self.p = 10000
@@ -88,7 +89,7 @@ class Obstacle1dEnv(object):
             dy (float): dy
         """
         self.t += self.env_step
-        self.y += float(dy)
+        self.y += float(dy) * self.dy_scale
         self.y_hist.append(self.y)
         if len(self.y_hist) > self.hist_len:
             self.y_hist.pop(0)
@@ -141,6 +142,14 @@ class Obstacle1dEnv(object):
     def get_action(self):
         return [self.pid_ctrl()/self.acc_scale]
 
+    def get_action_y(self):
+        return [self.y]
+
+    def get_action_dy(self):
+        if len(self.y_hist) < 2:
+            return [0]
+        return [(self.y - self.y_hist[-2])/self.dy_scale]
+
     def get_noised_action(self, noise=1.0):
         return [self.pid_ctrl()/self.acc_scale + np.random.randn()*noise]
 
@@ -188,7 +197,7 @@ def increase_bound_env(vis=True, y=0, v=0, env_step=0.01):
 def randpath_bound_env(vis=True, y=None, v=None, env_step=0.01):
 
     if y is None:
-        y_bd = [-0, 0]
+        y_bd = [-3, 3]
         y = np.random.rand()*(y_bd[1]-y_bd[0])+y_bd[0]
     if v is None:
         v_bd = [-5, 5]
@@ -204,8 +213,8 @@ def randpath_bound_env(vis=True, y=None, v=None, env_step=0.01):
 
     # wn_exp_bd = [0.8, 2]
     # zeta_bd = [0.3, 1.5]
-    wn_exp_bd = [0.8, 1.5]
-    zeta_bd = [0.4, 1.5]
+    wn_exp_bd = [0.8, 1.8]
+    zeta_bd = [0.5, 1.1]
     wn = 10**(np.random.rand()*(wn_exp_bd[1]-wn_exp_bd[0])+wn_exp_bd[0])
     zeta = np.random.rand()*(zeta_bd[1]-zeta_bd[0])+zeta_bd[0]
     p = wn**2
@@ -261,16 +270,17 @@ def test_rand_bound_env():
             print("obs_v: ", ["{:.2f}".format(obs[1])])
             print("dy: ", ["{:.2f}".format(env.y - last_y)])
             print("action", ["{:.2f}".format(num) for num in env.get_action()])
-            
+            print("action_dy", ["{:.2f}".format(num) for num in env.get_action_dy()])
+
             sdf_obs = np.array(obs[2:]).reshape(5, 6)
             print("sdf_obs: ")
             for row in sdf_obs:
                 print(["{:.2f}".format(num) for num in row])
                 # print(["○" if num > 0 else "●" for num in row])
-            
+
             # print("action_y: ", ["{:.2f}".format(env.y)])
             last_y = env.y
-            plt.pause(0.1)
+            # plt.pause(0.1)
         env.end()
 
 

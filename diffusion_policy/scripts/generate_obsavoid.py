@@ -20,12 +20,12 @@ import time
 
 @click.command()
 @click.option('-o', '--output', required=True, default="data/obsavoid/obsavoid_replay_dyctrl.zarr")
-@click.option('-n', '--n_episodes', default=500)
-@click.option('-e', '--episode_steps', default=150)
+@click.option('-n', '--n_episodes', default=250)
+@click.option('-e', '--episode_steps', default=200)
 @click.option('-c', '--chunk_length', default=-1)
 @click.option('--ctrl_mode', default='dy', type=click.Choice(['dy', 'y', 'acc']))
 @click.option('-v', '--visualize', default=True)
-def main(output, n_episodes, episode_steps, chunk_length, ctrl_mode, visualize, vis_interval=10):
+def main(output, n_episodes, episode_steps, chunk_length, ctrl_mode, visualize, vis_interval=100):
 
     buffer = ReplayBuffer.create_empty_numpy()
 
@@ -36,27 +36,25 @@ def main(output, n_episodes, episode_steps, chunk_length, ctrl_mode, visualize, 
                                  env_step=0.01)
         obs_history = list()
         action_history = list()
-        last_y = env.y
         for i in range(episode_steps):
             observation = env.get_observation()
-            action = env.get_action()
-            # reward = env.get_reward()
             obs_history.append(observation)
+            # reward = env.get_reward()
+            # rewards.append(reward)
+
             if ctrl_mode == 'dy':
-                action_history.append([env.y - last_y])
+                action = env.get_action_dy()
+                action_history.append(action)
             elif ctrl_mode == 'y':
-                action_history.append([env.y])
+                action = env.get_action_y()
+                action_history.append(action)
             elif ctrl_mode == 'acc':
+                action = env.get_action()
                 action_history.append(action)
             else:
                 raise ValueError("Invalid ctrl_mode")
-            # print("dy: ", ["{:.2f}".format(env.y - last_y)])
-            # time.sleep(0.1)
-
-            last_y = env.y
-            # rewards.append(reward)
-
-            env.step_env(acc=action[0], vis=False)
+            print("action:", action[0])
+            env.step_env(acc=env.get_action()[0], vis=False)
             # Visualize (per 100 steps)
             if (visualize and i % vis_interval == 0):
                 env.vis_step()
