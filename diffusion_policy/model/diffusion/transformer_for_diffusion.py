@@ -63,7 +63,7 @@ class TransformerForDiffusion(ModuleAttrMixin):
                 encoder_layer = nn.TransformerEncoderLayer(
                     d_model=n_emb,
                     nhead=n_head,
-                    dim_feedforward=4*n_emb,
+                    dim_feedforward=4*n_emb, # hidden dim (FF MLP: input | hidden | output)
                     dropout=p_drop_attn,
                     activation='gelu',
                     batch_first=True,

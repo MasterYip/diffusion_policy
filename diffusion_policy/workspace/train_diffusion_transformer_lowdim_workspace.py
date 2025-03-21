@@ -38,7 +38,7 @@ OmegaConf.register_new_resolver("eval", eval, replace=True)
 class TrainDiffusionTransformerLowdimWorkspace(BaseWorkspace):
     include_keys = ['global_step', 'epoch']
 
-    def __init__(self, cfg: OmegaConf):
+    def __init__(self, cfg: OmegaConf, output_dir=None):
         super().__init__(cfg)
 
         # set seed
@@ -206,6 +206,9 @@ class TrainDiffusionTransformerLowdimWorkspace(BaseWorkspace):
                 # replace train_loss with epoch average
                 train_loss = np.mean(train_losses)
                 step_log['train_loss'] = train_loss
+                
+                # NOTE: test_mean_score placeholder
+                step_log['test_mean_score'] = 0.0
 
                 # ========= eval for this epoch ==========
                 policy = self.model
