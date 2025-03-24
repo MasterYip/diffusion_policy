@@ -1,3 +1,11 @@
+'''
+Author: MasterYip 2205929492@qq.com
+Date: 2025-03-24 17:27:45
+Description: file content
+FilePath: /diffusion_policy/diffusion_policy/model/diffusion/transformer_for_rolling_diff.py
+LastEditTime: 2025-03-24 17:27:48
+LastEditors: MasterYip
+'''
 from typing import Union, Optional, Tuple
 import logging
 import torch
@@ -8,7 +16,7 @@ from diffusion_policy.model.common.module_attr_mixin import ModuleAttrMixin
 logger = logging.getLogger(__name__)
 
 
-class TransformerForDiffusion(ModuleAttrMixin):
+class TransformerForRollingDiffusion(ModuleAttrMixin):
     """Transformer architecture for diffusion-based trajectory prediction.
 
     Designed for robotic control tasks with support for temporal conditioning
@@ -104,7 +112,7 @@ class TransformerForDiffusion(ModuleAttrMixin):
                 encoder_layer = nn.TransformerEncoderLayer(
                     d_model=n_emb,
                     nhead=n_head,
-                    dim_feedforward=4*n_emb, # hidden dim (FF MLP: input | hidden | output)
+                    dim_feedforward=4*n_emb,  # hidden dim (FF MLP: input | hidden | output)
                     dropout=p_drop_attn,
                     activation='gelu',
                     batch_first=True,
@@ -226,7 +234,7 @@ class TransformerForDiffusion(ModuleAttrMixin):
         elif isinstance(module, nn.LayerNorm):
             torch.nn.init.zeros_(module.bias)
             torch.nn.init.ones_(module.weight)
-        elif isinstance(module, TransformerForDiffusion):
+        elif isinstance(module, TransformerForRollingDiffusion):
             torch.nn.init.normal_(module.pos_emb, mean=0.0, std=0.02)
             if module.cond_obs_emb is not None:
                 torch.nn.init.normal_(module.cond_pos_emb, mean=0.0, std=0.02)
@@ -388,7 +396,7 @@ class TransformerForDiffusion(ModuleAttrMixin):
 
 def test():
     # GPT with time embedding
-    transformer = TransformerForDiffusion(
+    transformer = TransformerForRollingDiffusion(
         input_dim=16,
         output_dim=16,
         horizon=8,
@@ -405,7 +413,7 @@ def test():
     out = transformer(sample, timestep)
 
     # GPT with time embedding and obs cond
-    transformer = TransformerForDiffusion(
+    transformer = TransformerForRollingDiffusion(
         input_dim=16,
         output_dim=16,
         horizon=8,
@@ -423,7 +431,7 @@ def test():
     out = transformer(sample, timestep, cond)
 
     # GPT with time embedding and obs cond and encoder
-    transformer = TransformerForDiffusion(
+    transformer = TransformerForRollingDiffusion(
         input_dim=16,
         output_dim=16,
         horizon=8,
@@ -441,7 +449,7 @@ def test():
     out = transformer(sample, timestep, cond)
 
     # BERT with time embedding token
-    transformer = TransformerForDiffusion(
+    transformer = TransformerForRollingDiffusion(
         input_dim=16,
         output_dim=16,
         horizon=8,
