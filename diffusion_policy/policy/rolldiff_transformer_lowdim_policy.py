@@ -1,4 +1,4 @@
-from typing import Optional, Callable
+from typing import Optional, Callable, Dict
 from collections import namedtuple
 from omegaconf import DictConfig
 import torch
@@ -7,26 +7,35 @@ from torch.nn import functional as F
 from einops import rearrange
 from .rolldiff_utils import linear_beta_schedule, cosine_beta_schedule, sigmoid_beta_schedule, extract, EinopsWrapper
 from diffusion_policy.model.diffusion.transformer_for_rolling_diff import TransformerForRollingDiffusion
+from diffusion_policy.policy.base_lowdim_policy import BaseLowdimPolicy
 
 ModelPrediction = namedtuple("ModelPrediction", ["pred_noise", "pred_x_start", "model_out"])
 
 
-class Diffusion(nn.Module):
-    # Special thanks to lucidrains for the implementation of the base Diffusion model
+class RollDiffTransformerLowdimPolicy(BaseLowdimPolicy):
+    # Special thanks to lucidrains for the implementation of the base RollDiffTransformerLowdimPolicy model
     # https://github.com/lucidrains/denoising-diffusion-pytorch
 
     def __init__(
         self,
         x_shape: torch.Size,
-        external_cond_dim: int,
-        is_causal: bool,
         cfg: DictConfig,
+        #=== model parameters ===
+        model: TransformerForRollingDiffusion,
+        horizon,
+        obs_dim,
+        action_dim,
+        n_action_steps,
+        n_obs_steps,
+        num_inference_steps=None,
+        obs_as_cond=True,
+        pred_action_steps_only=True,
+        # parameters passed to step
+        **kwargs
     ):
         super().__init__()
-        self.cfg = cfg
 
         self.x_shape = x_shape
-        self.external_cond_dim = external_cond_dim
         self.timesteps = cfg.timesteps
         self.sampling_timesteps = cfg.sampling_timesteps
         self.beta_schedule = cfg.beta_schedule
@@ -39,45 +48,10 @@ class Diffusion(nn.Module):
         self.clip_noise = cfg.clip_noise
         self.arch = cfg.architecture
         self.stabilization_level = cfg.stabilization_level
-        self.is_causal = is_causal
 
-        self._build_model()
+        self.model = model
         self._build_buffer()
 
-    def _build_model(self):
-        x_channel = self.x_shape[0]
-        if len(self.x_shape) == 3:
-            # video
-            attn_resolutions = [self.arch.resolution // res for res in list(self.arch.attn_resolutions)]
-            self.model = EinopsWrapper(
-                from_shape="f b c h w",
-                to_shape="b c f h w",
-                module=Unet3D(
-                    dim=self.arch.network_size,
-                    attn_dim_head=self.arch.attn_dim_head,
-                    attn_heads=self.arch.attn_heads,
-                    dim_mults=self.arch.dim_mults,
-                    attn_resolutions=attn_resolutions,
-                    use_linear_attn=self.arch.use_linear_attn,
-                    channels=x_channel,
-                    out_dim=x_channel,
-                    external_cond_dim=self.external_cond_dim,
-                    is_causal=self.is_causal,
-                    use_init_temporal_attn=self.arch.use_init_temporal_attn,
-                    time_emb_type=self.arch.time_emb_type,
-                ),
-            )
-        elif len(self.x_shape) == 1:
-            self.model = Transformer(
-                x_dim=x_channel,
-                external_cond_dim=self.external_cond_dim,
-                size=self.arch.network_size,
-                num_layers=self.arch.num_layers,
-                nhead=self.arch.attn_heads,
-                dim_feedforward=self.arch.dim_feedforward,
-            )
-        else:
-            raise ValueError(f"unsupported input shape {self.x_shape}")
 
     def _build_buffer(self):
         if self.beta_schedule == "linear":
@@ -160,7 +134,8 @@ class Diffusion(nn.Module):
 
     def model_predictions(self, x, t, external_cond=None):
         print("x shape in model_predictions", x.shape)
-        model_output = self.model(x, t, external_cond, is_causal=self.is_causal)
+        # TODO: check shape of x, t, external_cond
+        model_output = self.model(x, t, external_cond)
 
         if self.objective == "pred_noise":
             pred_noise = torch.clamp(model_output, -self.clip_noise, self.clip_noise)
@@ -490,3 +465,99 @@ class Diffusion(nn.Module):
         )
 
         return x_pred
+
+    # interface (copied from diffusion policy)
+    
+    def predict_action(self, obs_dict: Dict[str, torch.Tensor]) -> Dict[str, torch.Tensor]:
+        """
+        obs_dict:
+            obs: B,To,Do
+        return: 
+            action: B,Ta,Da
+        To = 3
+        Ta = 4
+        T = 6
+        |o|o|o|
+        | | |a|a|a|a|
+        |o|o|
+        | |a|a|a|a|a|
+        | | | | |a|a|
+        """
+        raise NotImplementedError()
+
+
+    def compute_loss(self, batch):
+        assert 'valid_mask' not in batch
+        nbatch = self.normalizer.normalize(batch)
+        obs = nbatch['obs']
+        action = nbatch['action']
+
+        # handle different ways of passing observation
+        cond = None
+        trajectory = action
+        if self.obs_as_cond:
+            cond = obs[:, :self.n_obs_steps, :]
+            if self.pred_action_steps_only:
+                To = self.n_obs_steps
+                start = To - 1
+                end = start + self.n_action_steps
+                trajectory = action[:, start:end]
+        else:
+            trajectory = torch.cat([action, obs], dim=-1)
+
+        # generate impainting mask
+        if self.pred_action_steps_only:
+            condition_mask = torch.zeros_like(trajectory, dtype=torch.bool)
+        else:
+            condition_mask = self.mask_generator(trajectory.shape)
+
+        # Sample noise that we'll add to the images
+        noise = torch.randn(trajectory.shape, device=trajectory.device)
+        bsz = trajectory.shape[0]
+        # Sample a random timestep for each image
+        timesteps = torch.randint(
+            0, self.noise_scheduler.config.num_train_timesteps,
+            (bsz,), device=trajectory.device
+        ).long()
+        # Add noise to the clean images according to the noise magnitude at each timestep
+        # (simulating the forward diffusion process without adding noise step by step)
+        # 1.Efficient Arbitrary Timestep Sampling: By directly using alphas_cumprod, it allows generating noisy samples for any timestep t in a single step, without the need to simulate the diffusion process iteratively.
+        # 2.Broadcasting Mechanism: Adjusting dimensions with unsqueeze ensures that coefficients are multiplied with each pixel of the input samples, avoiding explicit data duplication.
+        # 3.Core of the Forward Process: This function implements the key step of the diffusion model's forward process, serving as the foundation for training by randomly sampling timesteps and calculating the loss.
+        noisy_trajectory = self.noise_scheduler.add_noise(
+            trajectory, noise, timesteps)
+
+        # compute loss mask
+        loss_mask = ~condition_mask
+
+        # apply conditioning
+        noisy_trajectory[condition_mask] = trajectory[condition_mask]
+
+        # Predict the noise residual
+        pred = self.model(noisy_trajectory, timesteps, cond)
+
+        pred_type = self.noise_scheduler.config.prediction_type
+        if pred_type == 'epsilon':
+            target = noise
+        elif pred_type == 'sample':
+            target = trajectory
+        else:
+            raise ValueError(f"Unsupported prediction type {pred_type}")
+
+        loss = F.mse_loss(pred, target, reduction='none')
+        loss = loss * loss_mask.type(loss.dtype)
+        loss = reduce(loss, 'b ... -> b (...)', 'mean')
+        loss = loss.mean()
+
+        return loss
+    
+    def set_normalizer(self, normalizer: LinearNormalizer):
+        self.normalizer.load_state_dict(normalizer.state_dict())
+
+    def get_optimizer(
+        self, weight_decay: float, learning_rate: float, betas: Tuple[float, float]
+    ) -> torch.optim.Optimizer:
+        return self.model.configure_optimizers(
+            weight_decay=weight_decay,
+            learning_rate=learning_rate,
+            betas=tuple(betas))
