@@ -3,8 +3,8 @@ Author: MasterYip 2205929492@qq.com
 Date: 2025-03-24 17:27:45
 Description: file content
 FilePath: /diffusion_policy/diffusion_policy/model/diffusion/transformer_for_rolling_diff.py
-LastEditTime: 2025-03-24 21:16:34
-LastEditors: MasterYip
+LastEditTime: 2025-03-25 12:06:08
+LastEditors: Raymon Yip
 '''
 from typing import Union, Optional, Tuple
 import logging
@@ -23,23 +23,29 @@ class TransformerForRollingDiffusion(ModuleAttrMixin):
     and multi-modal observations.
 
     Args:
+        # Decoder
         input_dim: Dimensionality of input trajectory features
         output_dim: Dimensionality of output predictions (must match input_dim
             for diffusion consistency)
         horizon: Number of timesteps in predicted trajectories
+        # Encoder
         n_obs_steps: Number of observation timesteps used for conditioning.
             Defaults to horizon if None.
         cond_dim: Dimensionality of conditioning observations (0 for no conditioning)
+        # Shared param for Enc/Dec
         n_layer: Number of transformer decoder layers in main network
         n_head: Number of attention heads in each transformer block
         n_emb: Hidden dimension size for transformer embeddings
+        # Dropout
         p_drop_emb: Dropout probability for embedding layers (for network stability)
-        p_drop_attn: Dropout probability for attention layers
+        p_drop_attn: Dropout probability for attention layers (for network stability)
+        # Configs
         causal_attn: Whether to use causal masking for autoregressive generation
         time_as_cond: Treat timestep as separate conditioning input (True) or
             concatenate with trajectory tokens (False)
         obs_as_cond: Whether to process observations as separate conditioning inputs.
             Requires cond_dim > 0.
+        # Encoder layers
         n_cond_layers: Number of transformer layers in conditioning encoder (0 for MLP)
 
     Raises:
@@ -59,19 +65,25 @@ class TransformerForRollingDiffusion(ModuleAttrMixin):
     """
 
     def __init__(self,
+                 # Decoder
                  input_dim: int,
                  output_dim: int,
                  horizon: int,
+                 # Encoder
                  n_obs_steps: int = None,
                  cond_dim: int = 0,
+                 # Shared param for Enc/Dec
                  n_layer: int = 12,
                  n_head: int = 12,
                  n_emb: int = 768,
+                 # Dropout
                  p_drop_emb: float = 0.1,
                  p_drop_attn: float = 0.1,
+                 # Configs
                  causal_attn: bool = False,
                  time_as_cond: bool = True,
                  obs_as_cond: bool = False,
+                 # Encoder layers
                  n_cond_layers: int = 0
                  ) -> None:
         super().__init__()
@@ -94,6 +106,7 @@ class TransformerForRollingDiffusion(ModuleAttrMixin):
         self.input_emb = nn.Linear(input_dim, n_emb)
         # PROBLEM: What is the purpose of pos_emb, why not using sine pos emb?
         self.pos_emb = nn.Parameter(torch.zeros(1, T, n_emb))  # This is trainable
+        self.noise_level_emb = nn.Parameter(torch.zeros(1, T, n_emb))
         self.drop = nn.Dropout(p_drop_emb)
 
         # cond encoder
@@ -239,6 +252,7 @@ class TransformerForRollingDiffusion(ModuleAttrMixin):
             torch.nn.init.ones_(module.weight)
         elif isinstance(module, TransformerForRollingDiffusion):
             torch.nn.init.normal_(module.pos_emb, mean=0.0, std=0.02)
+            torch.nn.init.normal_(module.noise_level_emb, mean=0.0, std=0.02)
             if module.cond_obs_emb is not None:
                 torch.nn.init.normal_(module.cond_pos_emb, mean=0.0, std=0.02)
         elif isinstance(module, ignore_types):
@@ -279,6 +293,7 @@ class TransformerForRollingDiffusion(ModuleAttrMixin):
 
         # special case the position embedding parameter in the root GPT module as not decayed
         no_decay.add("pos_emb")
+        no_decay.add("noise_level_emb")
         no_decay.add("_dummy_variable")
         if self.cond_pos_emb is not None:
             no_decay.add("cond_pos_emb")
@@ -321,33 +336,40 @@ class TransformerForRollingDiffusion(ModuleAttrMixin):
 
     def forward(self,
                 sample: torch.Tensor,
-                timestep: Union[torch.Tensor, float, int],
+                noise_level: torch.Tensor,
                 cond: Optional[torch.Tensor] = None, **kwargs):
         """
         sample(x): (B,T,input_dim)
-        timestep: (B,) or int, diffusion step k
+        noise_level: (B,T) diffusion noise level
         cond: (B,T',cond_dim)
         output: (B,T,input_dim)
         B: batch size, T: time steps, input_dim: input dimension, cond_dim: condition dimension
         """
-        # 1. time
-        timesteps = timestep
-        if not torch.is_tensor(timesteps):
-            # TODO: this requires sync between CPU and GPU. So try to pass timesteps as tensors if you can
-            timesteps = torch.tensor([timesteps], dtype=torch.long, device=sample.device)
-        elif torch.is_tensor(timesteps) and len(timesteps.shape) == 0:
-            timesteps = timesteps[None].to(sample.device)
-        # broadcast to batch dimension in a way that's compatible with ONNX/Core ML
-        timesteps = timesteps.expand(sample.shape[0])
-        time_emb = self.time_emb(timesteps).unsqueeze(1)
-        # (B,1,n_emb)
+        # 1. noise level
+        # timesteps = timestep
+        # if not torch.is_tensor(timesteps):
+        #     # TODO: this requires sync between CPU and GPU. So try to pass timesteps as tensors if you can
+        #     timesteps = torch.tensor([timesteps], dtype=torch.long, device=sample.device)
+        # elif torch.is_tensor(timesteps) and len(timesteps.shape) == 0:
+        #     timesteps = timesteps[None].to(sample.device)
+        # # broadcast to batch dimension in a way that's compatible with ONNX/Core ML
+        # timesteps = timesteps.expand(sample.shape[0])
+        # time_emb = self.time_emb(timesteps).unsqueeze(1)  # Turn to time_emb
+        
+        # PROBLEM: to learn or not to learn
+        noise_levels = noise_level  # (B,T)
+        # convert to indices of noise level embeddings
+        noise_levels = noise_levels.long()
+        noise_level_embeddings = self.noise_level_emb[noise_levels]
+        # (B,T,n_emb)
 
         # process input
         input_emb = self.input_emb(sample)
 
         if self.encoder_only:
+            # TODO:
             # BERT
-            token_embeddings = torch.cat([time_emb, input_emb], dim=1)
+            token_embeddings = torch.cat([input_emb], dim=1)
             t = token_embeddings.shape[1]
             position_embeddings = self.pos_emb[
                 :, :t, :
@@ -360,16 +382,16 @@ class TransformerForRollingDiffusion(ModuleAttrMixin):
             # (B,T,n_emb)
         else:
             # encoder
-            cond_embeddings = time_emb
-            if self.obs_as_cond:
-                cond_obs_emb = self.cond_obs_emb(cond)
-                # (B,To,n_emb)
-                cond_embeddings = torch.cat([cond_embeddings, cond_obs_emb], dim=1)
+            # cond_embeddings = time_emb
+            # if self.obs_as_cond:  # Must be True
+            cond_obs_emb = self.cond_obs_emb(cond)
+            # (B,To,n_emb)
+            cond_embeddings = cond_obs_emb
             tc = cond_embeddings.shape[1]
             position_embeddings = self.cond_pos_emb[
                 :, :tc, :
             ]  # each position maps to a (learnable) vector
-            x = self.drop(cond_embeddings + position_embeddings)
+            x = self.drop(cond_embeddings + position_embeddings + noise_level_embeddings)
             x = self.encoder(x)
             memory = x
             # (B,T_cond,n_emb)
