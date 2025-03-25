@@ -36,15 +36,15 @@ class RollDiffTransformerLowdimPolicy(BaseLowdimPolicy):
         super().__init__()
 
         self.x_shape = x_shape
-        self.timesteps = cfg.timesteps
-        self.sampling_timesteps = cfg.sampling_timesteps
+        self.timesteps = cfg.timesteps  # Total timesteps
+        self.sampling_timesteps = cfg.sampling_timesteps  # Sampling timesteps for DDIM
         self.beta_schedule = cfg.beta_schedule
         self.schedule_fn_kwargs = cfg.schedule_fn_kwargs
         self.objective = cfg.objective
         self.use_fused_snr = cfg.use_fused_snr
         self.snr_clip = cfg.snr_clip
         self.cum_snr_decay = cfg.cum_snr_decay
-        self.ddim_sampling_eta = cfg.ddim_sampling_eta
+        self.ddim_sampling_eta = cfg.ddim_sampling_eta  # DDIM sampling eta
         self.clip_noise = cfg.clip_noise
         self.arch = cfg.architecture
         self.stabilization_level = cfg.stabilization_level
@@ -471,93 +471,95 @@ class RollDiffTransformerLowdimPolicy(BaseLowdimPolicy):
     def predict_action(self, obs_dict: Dict[str, torch.Tensor]) -> Dict[str, torch.Tensor]:
         """
         obs_dict:
-            obs: B,To,Do
+            obs: (B, To, Do)  # To=observation horizon
         return: 
-            action: B,Ta,Da
-        To = 3
-        Ta = 4
-        T = 6
-        |o|o|o|
-        | | |a|a|a|a|
-        |o|o|
-        | |a|a|a|a|a|
-        | | | | |a|a|
+            action: (B, Ta, Da)  # Ta=action horizon
         """
-        raise NotImplementedError()
+        # 数据标准化
+        nobs = self.normalizer.normalize(obs_dict['obs'], 'observations')
+        cond = nobs[:, :self.n_obs_steps, :]  # (B, n_obs_steps, Do)
+        
+        # 初始化噪声轨迹
+        batch_size = cond.shape[0]
+        trajectory = torch.randn(
+            (batch_size, self.n_action_steps, self.action_dim),
+            device=cond.device
+        )
+        
+        # DDIM采样过程
+        timesteps = torch.linspace(0, self.timesteps-1, self.sampling_timesteps, device=cond.device).long()
+        
+        for t in reversed(range(0, self.sampling_timesteps)):
+            ts = torch.full((batch_size,), t, device=cond.device, dtype=torch.long)
+            
+            # 生成带噪声的轨迹
+            noisy_trajectory = self.q_sample(
+                x_start=trajectory,
+                t=ts,
+                noise=torch.randn_like(trajectory)
+            )
+            
+            # 模型预测
+            model_pred = self.model_predictions(
+                x=noisy_trajectory,
+                t=ts,
+                external_cond=cond
+            )
+            
+            # 更新轨迹
+            trajectory = model_pred.pred_x_start.detach()
+        
+        # 反标准化输出
+        unnorm_action = self.normalizer.unnormalize(trajectory, 'actions')
+        return {'action': unnorm_action}
 
-
-    def compute_loss(self, batch):
-        assert 'valid_mask' not in batch
-        nbatch = self.normalizer.normalize(batch)
-        obs = nbatch['obs']
-        action = nbatch['action']
-
-        # handle different ways of passing observation
-        cond = None
-        trajectory = action
-        if self.obs_as_cond:
-            cond = obs[:, :self.n_obs_steps, :]
-            if self.pred_action_steps_only:
-                To = self.n_obs_steps
-                start = To - 1
-                end = start + self.n_action_steps
-                trajectory = action[:, start:end]
-        else:
-            trajectory = torch.cat([action, obs], dim=-1)
-
-        # generate impainting mask
-        if self.pred_action_steps_only:
-            condition_mask = torch.zeros_like(trajectory, dtype=torch.bool)
-        else:
-            condition_mask = self.mask_generator(trajectory.shape)
-
-        # Sample noise that we'll add to the images
-        noise = torch.randn(trajectory.shape, device=trajectory.device)
-        bsz = trajectory.shape[0]
-        # Sample a random timestep for each image
+    def compute_loss(self, batch: Dict[str, torch.Tensor]) -> torch.Tensor:
+        # 数据标准化
+        nobs = self.normalizer.normalize(batch['obs'], 'observations')
+        naction = self.normalizer.normalize(batch['action'], 'actions')
+        
+        # 构建条件
+        cond = nobs[:, :self.n_obs_steps, :]  # (B, n_obs_steps, Do)
+        
+        # 生成噪声时间步
+        batch_size = cond.shape[0]
         timesteps = torch.randint(
-            0, self.noise_scheduler.config.num_train_timesteps,
-            (bsz,), device=trajectory.device
+            0, self.timesteps,
+            (batch_size,), device=cond.device
         ).long()
-        # Add noise to the clean images according to the noise magnitude at each timestep
-        # (simulating the forward diffusion process without adding noise step by step)
-        # 1.Efficient Arbitrary Timestep Sampling: By directly using alphas_cumprod, it allows generating noisy samples for any timestep t in a single step, without the need to simulate the diffusion process iteratively.
-        # 2.Broadcasting Mechanism: Adjusting dimensions with unsqueeze ensures that coefficients are multiplied with each pixel of the input samples, avoiding explicit data duplication.
-        # 3.Core of the Forward Process: This function implements the key step of the diffusion model's forward process, serving as the foundation for training by randomly sampling timesteps and calculating the loss.
-        noisy_trajectory = self.noise_scheduler.add_noise(
-            trajectory, noise, timesteps)
-
-        # compute loss mask
-        loss_mask = ~condition_mask
-
-        # apply conditioning
-        noisy_trajectory[condition_mask] = trajectory[condition_mask]
-
-        # Predict the noise residual
-        pred = self.model(noisy_trajectory, timesteps, cond)
-
-        pred_type = self.noise_scheduler.config.prediction_type
-        if pred_type == 'epsilon':
-            target = noise
-        elif pred_type == 'sample':
-            target = trajectory
-        else:
-            raise ValueError(f"Unsupported prediction type {pred_type}")
-
-        loss = F.mse_loss(pred, target, reduction='none')
-        loss = loss * loss_mask.type(loss.dtype)
-        loss = reduce(loss, 'b ... -> b (...)', 'mean')
-        loss = loss.mean()
-
+        
+        # 生成噪声
+        noise = torch.randn_like(naction)
+        noisy_actions = self.q_sample(
+            x_start=naction,
+            t=timesteps,
+            noise=noise
+        )
+        
+        # 模型预测
+        model_pred = self.model_predictions(
+            x=noisy_actions,
+            t=timesteps,
+            external_cond=cond
+        )
+        
+        # 计算损失（支持多种预测目标）
+        target = {
+            'pred_noise': noise,
+            'pred_x0': naction,
+            'pred_v': self.predict_v(naction, timesteps, noise)
+        }[self.objective]
+        
+        loss = F.mse_loss(model_pred.model_out, target)
         return loss
     
-    def set_normalizer(self, normalizer: LinearNormalizer):
-        self.normalizer.load_state_dict(normalizer.state_dict())
+    # def set_normalizer(self, normalizer: LinearNormalizer):
+    #     self.normalizer.load_state_dict(normalizer.state_dict())
 
-    def get_optimizer(
-        self, weight_decay: float, learning_rate: float, betas: Tuple[float, float]
-    ) -> torch.optim.Optimizer:
-        return self.model.configure_optimizers(
-            weight_decay=weight_decay,
-            learning_rate=learning_rate,
-            betas=tuple(betas))
+    # def get_optimizer(
+    #     self, weight_decay: float, learning_rate: float, betas: Tuple[float, float]
+    # ) -> torch.optim.Optimizer:
+    #     return self.model.configure_optimizers(
+    #         weight_decay=weight_decay,
+    #         learning_rate=learning_rate,
+    #         betas=tuple(betas))
