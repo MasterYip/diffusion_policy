@@ -3,7 +3,7 @@ Author: MasterYip 2205929492@qq.com
 Date: 2025-03-24 17:27:45
 Description: file content
 FilePath: /diffusion_policy/diffusion_policy/model/diffusion/transformer_for_rolling_diff.py
-LastEditTime: 2025-03-25 12:06:08
+LastEditTime: 2025-03-25 14:08:06
 LastEditors: Raymon Yip
 '''
 from typing import Union, Optional, Tuple
@@ -355,7 +355,9 @@ class TransformerForRollingDiffusion(ModuleAttrMixin):
         # # broadcast to batch dimension in a way that's compatible with ONNX/Core ML
         # timesteps = timesteps.expand(sample.shape[0])
         # time_emb = self.time_emb(timesteps).unsqueeze(1)  # Turn to time_emb
-        
+
+        # assert noise level shape
+        assert noise_level.shape == sample.shape[:2]
         # PROBLEM: to learn or not to learn
         noise_levels = noise_level  # (B,T)
         # convert to indices of noise level embeddings

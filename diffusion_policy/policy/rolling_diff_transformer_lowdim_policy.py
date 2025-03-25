@@ -6,6 +6,7 @@ from einops import rearrange, reduce
 from diffusers.schedulers.scheduling_ddpm import DDPMScheduler
 
 from diffusion_policy.model.common.normalizer import LinearNormalizer
+from diffusion_policy.model.diffusion.transformer_for_rolling_diff import TransformerForRollingDiffusion
 from diffusion_policy.policy.base_lowdim_policy import BaseLowdimPolicy
 from diffusion_policy.model.diffusion.transformer_for_diffusion import TransformerForDiffusion
 from diffusion_policy.model.diffusion.mask_generator import LowdimMaskGenerator
@@ -13,9 +14,10 @@ from diffusion_policy.model.diffusion.mask_generator import LowdimMaskGenerator
 import time
 import numpy as np
 
+
 class RollingDiffTransformerLowdimPolicy(BaseLowdimPolicy):
     def __init__(self,
-                 model: TransformerForDiffusion,
+                 model: TransformerForRollingDiffusion,
                  noise_scheduler: DDPMScheduler,
                  horizon,
                  obs_dim,
@@ -225,7 +227,10 @@ class RollingDiffTransformerLowdimPolicy(BaseLowdimPolicy):
             (bsz,), device=trajectory.device
         ).long()
         # Add noise to the clean images according to the noise magnitude at each timestep
-        # (this is the forward diffusion process)
+        # (simulating the forward diffusion process without adding noise step by step)
+        # 1.Efficient Arbitrary Timestep Sampling: By directly using alphas_cumprod, it allows generating noisy samples for any timestep t in a single step, without the need to simulate the diffusion process iteratively.
+        # 2.Broadcasting Mechanism: Adjusting dimensions with unsqueeze ensures that coefficients are multiplied with each pixel of the input samples, avoiding explicit data duplication.
+        # 3.Core of the Forward Process: This function implements the key step of the diffusion model's forward process, serving as the foundation for training by randomly sampling timesteps and calculating the loss.
         noisy_trajectory = self.noise_scheduler.add_noise(
             trajectory, noise, timesteps)
 
