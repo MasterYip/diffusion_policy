@@ -3,7 +3,7 @@ Author: MasterYip 2205929492@qq.com
 Date: 2025-03-24 17:27:45
 Description: file content
 FilePath: /diffusion_policy/diffusion_policy/model/diffusion/transformer_for_rolling_diff.py
-LastEditTime: 2025-03-24 17:27:48
+LastEditTime: 2025-03-24 21:16:34
 LastEditors: MasterYip
 '''
 from typing import Union, Optional, Tuple
@@ -92,7 +92,8 @@ class TransformerForRollingDiffusion(ModuleAttrMixin):
 
         # input embedding stem
         self.input_emb = nn.Linear(input_dim, n_emb)
-        self.pos_emb = nn.Parameter(torch.zeros(1, T, n_emb))
+        # PROBLEM: What is the purpose of pos_emb, why not using sine pos emb?
+        self.pos_emb = nn.Parameter(torch.zeros(1, T, n_emb))  # This is trainable
         self.drop = nn.Dropout(p_drop_emb)
 
         # cond encoder
@@ -205,6 +206,8 @@ class TransformerForRollingDiffusion(ModuleAttrMixin):
         )
 
     def _init_weights(self, module):
+        """Transformer weight initialization.
+        """
         ignore_types = (nn.Dropout,
                         SinusoidalPosEmb,
                         nn.TransformerEncoderLayer,
@@ -321,8 +324,8 @@ class TransformerForRollingDiffusion(ModuleAttrMixin):
                 timestep: Union[torch.Tensor, float, int],
                 cond: Optional[torch.Tensor] = None, **kwargs):
         """
-        x: (B,T,input_dim)
-        timestep: (B,) or int, diffusion step
+        sample(x): (B,T,input_dim)
+        timestep: (B,) or int, diffusion step k
         cond: (B,T',cond_dim)
         output: (B,T,input_dim)
         B: batch size, T: time steps, input_dim: input dimension, cond_dim: condition dimension
@@ -377,7 +380,7 @@ class TransformerForRollingDiffusion(ModuleAttrMixin):
             position_embeddings = self.pos_emb[
                 :, :t, :
             ]  # each position maps to a (learnable) vector
-            x = self.drop(token_embeddings + position_embeddings)
+            x = self.drop(token_embeddings + position_embeddings)  # Add positional embeddings (time dimension)
             # (B,T,n_emb)
             x = self.decoder(
                 tgt=x,
