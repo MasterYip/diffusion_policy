@@ -1,3 +1,4 @@
+from ast import Tuple
 from typing import Optional, Callable, Dict
 from collections import namedtuple
 from omegaconf import DictConfig
@@ -36,7 +37,7 @@ class RollingDiffusion(ModuleAttrMixin):
     ):
         super().__init__()
 
-        self.x_shape = (action_dim)
+        self.x_shape = [action_dim]
         self.timesteps = cfg.timesteps  # Total timesteps
         self.sampling_timesteps = cfg.sampling_timesteps  # Sampling timesteps for DDIM
         self.beta_schedule = cfg.beta_schedule
@@ -66,7 +67,7 @@ class RollingDiffusion(ModuleAttrMixin):
         betas = beta_schedule_fn(self.timesteps, **self.schedule_fn_kwargs)
 
         alphas = 1.0 - betas
-        alphas_cumprod = torch.cumprod(alphas, dim=0) # Cumulative Product of alpha (alpha, alpha^2, ...)
+        alphas_cumprod = torch.cumprod(alphas, dim=0)  # Cumulative Product of alpha (alpha, alpha^2, ...)
         alphas_cumprod_prev = F.pad(alphas_cumprod[:-1], (1, 0), value=1.0)
 
         # sampling related parameters
@@ -74,7 +75,7 @@ class RollingDiffusion(ModuleAttrMixin):
         self.is_ddim_sampling = self.sampling_timesteps < self.timesteps
 
         # helper function to register buffer from float64 to float32
-        register_buffer = lambda name, val: self.register_buffer(name, val.to(torch.float32))
+        def register_buffer(name, val): return self.register_buffer(name, val.to(torch.float32))
 
         register_buffer("betas", betas)
         register_buffer("alphas_cumprod", alphas_cumprod)
@@ -193,9 +194,9 @@ class RollingDiffusion(ModuleAttrMixin):
         """Sample Noise
 
         Args:
-            x_start (_type_): Origin X (batch)
-            t (_type_): Scheduled noise level
-            noise (_type_, optional): nominal noise.
+            x_start (_type_): Origin X (B, Ta, Da)
+            t (_type_): Scheduled noise level (B, Ta)
+            noise (_type_, optional): nominal noise. (B, Ta, Da)
 
         """
         if noise is None:
@@ -203,6 +204,9 @@ class RollingDiffusion(ModuleAttrMixin):
             noise = torch.clamp(noise, -self.clip_noise, self.clip_noise)
 
         # Mix X with Noise according to the scheduled noise level
+        print("q sample \n x_start shape", x_start.shape)
+        print("t shape", t.shape)
+        print("noise shape", noise.shape)
         return (
             extract(self.sqrt_alphas_cumprod, t, x_start.shape) * x_start
             + extract(self.sqrt_one_minus_alphas_cumprod, t, x_start.shape) * noise
@@ -255,9 +259,9 @@ class RollingDiffusion(ModuleAttrMixin):
 
     def forward(
         self,
-        x: torch.Tensor,
-        external_cond: Optional[torch.Tensor],
-        noise_levels: torch.Tensor,
+        x: torch.Tensor,  # (B, Ta, Da)
+        external_cond: Optional[torch.Tensor],  # (B, To, Do)
+        noise_levels: torch.Tensor,  # (B, Ta)
     ):
         # Nominal Noise
         noise = torch.randn_like(x)
@@ -265,6 +269,8 @@ class RollingDiffusion(ModuleAttrMixin):
 
         # Sample Noised X
         noised_x = self.q_sample(x_start=x, t=noise_levels, noise=noise)
+        # (B, Ta, Da)
+
         # Sample Prediction
         model_pred = self.model_predictions(x=noised_x, t=noise_levels, external_cond=external_cond)
 
@@ -281,7 +287,7 @@ class RollingDiffusion(ModuleAttrMixin):
         else:
             raise ValueError(f"unknown objective {self.objective}")
 
-        loss = F.mse_loss(pred, target.detach(), reduction="none") # Element wise mse
+        loss = F.mse_loss(pred, target.detach(), reduction="none")  # Element wise mse
         loss_weight = self.compute_loss_weights(noise_levels)
         loss_weight = loss_weight.view(*loss_weight.shape, *((1,) * (loss.ndim - 2)))
         loss = loss * loss_weight
@@ -380,16 +386,15 @@ class RollingDiffusion(ModuleAttrMixin):
         """DDIM Sample Step
 
         Args:
-            x (torch.Tensor): X state
-            external_cond (Optional[torch.Tensor]): external condition
-            curr_noise_level (torch.Tensor): current noise level
-            next_noise_level (torch.Tensor): next noise level
+            x (torch.Tensor): X state (B, Ta, Da)
+            external_cond (Optional[torch.Tensor]): external condition (B, To, Do)
+            curr_noise_level (torch.Tensor): current noise level (B, Ta)
+            next_noise_level (torch.Tensor): next noise level (B, Ta)
             guidance_fn (Optional[Callable], optional): guidance function. Defaults to None.
 
         Returns:
             torch.Tensor: X prediction
         """
-        print("x shape in ddim_step 1", x.shape)
         # convert noise level -1 to self.stabilization_level - 1
         clipped_curr_noise_level = torch.where(
             curr_noise_level < 0,
@@ -405,8 +410,7 @@ class RollingDiffusion(ModuleAttrMixin):
             noise=torch.zeros_like(x),
         )
         x = torch.where(self.add_shape_channels(curr_noise_level < 0), scaled_context, orig_x)
-        print("x shape in ddim_step 3", x.shape)
-        
+
         alpha = self.alphas_cumprod[clipped_curr_noise_level]
         alpha_next = torch.where(
             next_noise_level < 0,

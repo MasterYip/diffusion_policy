@@ -3,7 +3,7 @@ Author: MasterYip 2205929492@qq.com
 Date: 2025-03-24 17:27:45
 Description: file content
 FilePath: /diffusion_policy/diffusion_policy/model/diffusion/transformer_for_rolling_diff.py
-LastEditTime: 2025-03-26 15:37:45
+LastEditTime: 2025-03-26 15:38:47
 LastEditors: Raymon Yip
 '''
 from typing import Union, Optional, Tuple
@@ -393,7 +393,6 @@ class TransformerForRollingDiffusion(ModuleAttrMixin):
             # encoder
             # cond_embeddings = time_emb
             # if self.obs_as_cond:  # Must be True
-            print("Encoder")
             cond_obs_emb = self.cond_obs_emb(cond)
             # (B,To,n_emb)
             cond_embeddings = cond_obs_emb
@@ -406,7 +405,6 @@ class TransformerForRollingDiffusion(ModuleAttrMixin):
             memory = x
             # (B,T_cond,n_emb)
 
-            print("Decoder")
             # decoder
             token_embeddings = input_emb
             t = token_embeddings.shape[1]

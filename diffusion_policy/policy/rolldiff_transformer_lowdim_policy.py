@@ -83,15 +83,15 @@ class RollDiffTransformerLowdimPolicy(BaseLowdimPolicy):
         """ Linearly increase noise level """
         zeros = torch.zeros(zero_noise_pad, dtype=torch.int32)
         increase = torch.tensor([1+uncertainty_scale*k for k in range(window-zero_noise_pad)], dtype=torch.int32)
-        return torch.cat([zeros, increase]).reshape(-1, 1).to(self.device)
+        return torch.cat([zeros, increase]).reshape(1, -1).to(self.device)
 
     def get_last_noise_mask(self, window=20, zero_noise_pad=20, uncertainty_scale=0.5):
         """ Shift 1 step back """
         mask = self.get_noise_mask(window, zero_noise_pad, uncertainty_scale)
-        return torch.cat([mask[1:], mask[-1].unsqueeze(0)]).reshape(-1, 1).to(self.device)
+        return torch.cat([mask[1:], mask[-1].unsqueeze(0)]).reshape(1, -1).to(self.device)
 
     def get_const_noise_mask(self, window=20, noise_level=1):
-        return torch.tensor([noise_level for _ in range(window)], dtype=torch.int32).reshape(-1, 1).to(self.device)
+        return torch.tensor([noise_level for _ in range(window)], dtype=torch.int32).reshape(1, -1).to(self.device)
 
     def init_trajectory(self, batch_size,  horizon: int, action_dim: int):
         # start = self.make_bundle()
@@ -105,11 +105,10 @@ class RollDiffTransformerLowdimPolicy(BaseLowdimPolicy):
         # plan_traj = torch.cat([init_token, chunk, pad], 0)
         plan_traj = chunk
         # (B,Ta,Da)
-        print("plan_traj:", plan_traj.shape)
 
         # Initialize noise levels
-        self.from_noise_levels = self.get_last_noise_mask(plan_horizon)
-        self.to_noise_levels = self.get_noise_mask(plan_horizon)
+        self.from_noise_levels = self.get_last_noise_mask(plan_horizon, 1).long().repeat(batch_size, 1)
+        self.to_noise_levels = self.get_noise_mask(plan_horizon, 1).long().repeat(batch_size, 1)
         return plan_traj
 
     def ddim_step(self, plan_traj, from_noise_levels=None, to_noise_levels=None, condition=None):

@@ -26,11 +26,16 @@ def extract(a, t, x_shape):
     Returns:
         torch.Tensor: Extracted tensor with reshaped dimensions.
     """
+    # FIXME: in diffusion forcing is (f, b) f = frame, b = batch; 
+    # in diffusion policy is (B, T, D)
+    # There may be a bug here
     if len(t.shape) == 1:
         f = t.shape[0]
         b = 1
-    else:
+    elif len(t.shape) == 2:
         f, b = t.shape  # frames, batch
+    elif len(t.shape) == 3:
+        f, b, _ = t.shape
     out = a[t]
     # *((1,) * (len(x_shape) - 2)): creates a tuple of ones with a length equal to len(x_shape) - 2.
     return out.reshape(f, b, *((1,) * (len(x_shape) - 2)))
