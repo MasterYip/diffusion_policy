@@ -1,4 +1,4 @@
-from typing import Optional, Callable, Dict
+from typing import Optional, Callable, Dict, Tuple
 from collections import namedtuple
 from omegaconf import DictConfig
 import torch
