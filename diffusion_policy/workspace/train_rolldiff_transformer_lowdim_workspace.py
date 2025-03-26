@@ -22,7 +22,8 @@ import shutil
 
 from diffusion_policy.common.pytorch_util import dict_apply, optimizer_to
 from diffusion_policy.workspace.base_workspace import BaseWorkspace
-from diffusion_policy.policy.diffusion_transformer_lowdim_policy import DiffusionTransformerLowdimPolicy
+# from diffusion_policy.policy.diffusion_transformer_lowdim_policy import DiffusionTransformerLowdimPolicy
+from diffusion_policy.policy.rolldiff_transformer_lowdim_policy import RollDiffTransformerLowdimPolicy
 from diffusion_policy.dataset.base_dataset import BaseLowdimDataset
 from diffusion_policy.env_runner.base_lowdim_runner import BaseLowdimRunner
 from diffusion_policy.common.checkpoint_util import TopKCheckpointManager
@@ -46,10 +47,10 @@ class TrainRollDiffTransformerLowdimWorkspace(BaseWorkspace):
         random.seed(seed)
 
         # configure model
-        self.model: DiffusionTransformerLowdimPolicy
+        self.model: RollDiffTransformerLowdimPolicy
         self.model = hydra.utils.instantiate(cfg.policy)
 
-        self.ema_model: DiffusionTransformerLowdimPolicy = None
+        self.ema_model: RollDiffTransformerLowdimPolicy = None
         if cfg.training.use_ema:
             self.ema_model = copy.deepcopy(self.model)
 

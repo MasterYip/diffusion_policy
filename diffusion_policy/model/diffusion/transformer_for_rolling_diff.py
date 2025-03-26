@@ -3,7 +3,7 @@ Author: MasterYip 2205929492@qq.com
 Date: 2025-03-24 17:27:45
 Description: file content
 FilePath: /diffusion_policy/diffusion_policy/model/diffusion/transformer_for_rolling_diff.py
-LastEditTime: 2025-03-25 14:08:06
+LastEditTime: 2025-03-26 11:36:44
 LastEditors: Raymon Yip
 '''
 from typing import Union, Optional, Tuple

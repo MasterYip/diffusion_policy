@@ -24,8 +24,8 @@ class RollDiffTransformerLowdimPolicy(BaseLowdimPolicy):
                  n_action_steps,
                  n_obs_steps,
                  max_noise_level=None,
-                 obs_as_cond=False,
-                 pred_action_steps_only=False,
+                 obs_as_cond=True,
+                 pred_action_steps_only=True,
                  # parameters passed to step
                  **kwargs):
         super().__init__()

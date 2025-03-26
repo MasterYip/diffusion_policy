@@ -1,0 +1,145 @@
+_target_: diffusion_policy.workspace.train_rolldiff_transformer_lowdim_workspace.TrainRollDiffTransformerLowdimWorkspace
+action_dim: 1
+checkpoint:
+  save_last_ckpt: true
+  save_last_snapshot: false
+  topk:
+    format_str: epoch={epoch:04d}-test_mean_score={test_mean_score:.3f}.ckpt
+    k: 5
+    mode: max
+    monitor_key: test_mean_score
+dataloader:
+  batch_size: 224
+  num_workers: 1
+  persistent_workers: false
+  pin_memory: true
+  shuffle: true
+ema:
+  _target_: diffusion_policy.model.diffusion.ema_model.EMAModel
+  inv_gamma: 1.0
+  max_value: 0.9999
+  min_value: 0.0
+  power: 0.75
+  update_after_step: 0
+exp_name: default
+horizon: 10
+keypoint_visible_rate: 1.0 # FIXME: unused
+logging:
+  group: null
+  id: null
+  mode: offline
+  name: 2023.01.16-20.11.42_train_diffusion_transformer_lowdim_obsavoid_lowdim
+  project: diffusion_policy_debug
+  resume: true
+  tags:
+  - train_diffusion_transformer_lowdim
+  - obsavoid_lowdim
+  - default
+multi_run:
+  run_dir: data/outputs/2023.01.16/20.11.42_train_diffusion_transformer_lowdim_obsavoid_lowdim
+  wandb_name_base: 2023.01.16-20.11.42_train_diffusion_transformer_lowdim_obsavoid_lowdim
+n_action_steps: 8
+n_latency_steps: 0
+n_obs_steps: 4
+name: train_diffusion_transformer_lowdim
+obs_as_cond: true
+obs_dim: 32
+optimizer:
+  betas:
+  - 0.9
+  - 0.95
+  learning_rate: 0.0001
+  weight_decay: 0.001
+past_action_visible: false
+policy:
+  _target_: diffusion_policy.policy.rolldiff_transformer_lowdim_policy.RollDiffTransformerLowdimPolicy
+  model:
+    _target_: diffusion_policy.model.diffusion.rolling_diffusion.RollingDiffusion
+    cfg: # rolling diffusion
+      # training
+      objective: pred_x0
+      beta_schedule: cosine
+      schedule_fn_kwargs: {}
+      clip_noise: 20.0
+      use_snr: False
+      use_cum_snr: False
+      use_fused_snr: False
+      snr_clip: 5.0
+      cum_snr_decay: 0.98
+      timesteps: 100
+      # sampling
+      sampling_timesteps: 20 # FIXME: numer of diffusion steps, should be increased
+      # NOTE: When sampling timestep < timesteps, ddim is used.
+      ddim_sampling_eta: 0.5
+      stabilization_level: 10
+      architecture:
+        network_size: 64
+    model: 
+      _target_: diffusion_policy.model.diffusion.transformer_for_rolling_diff.TransformerForRollingDiff
+      causal_attn: true
+      cond_dim: 32
+      horizon: 10
+      input_dim: 1 # Action input
+      n_cond_layers: 0
+      n_emb: 256 # Embedding dimension
+      n_head: 4 # Attention heads
+      n_layer: 8 # Transformer layers (attention + feedforward)
+      n_obs_steps: 4
+      obs_as_cond: true
+      output_dim: 1 # Action output
+      p_drop_attn: 0.3
+      p_drop_emb: 0.0
+      time_as_cond: true
+    action_dim: 1
+  action_dim: 1
+  horizon: 10
+  n_action_steps: 8
+  n_obs_steps: 4
+  num_inference_steps: 100
+  obs_as_cond: true
+  obs_dim: 32
+  pred_action_steps_only: false
+pred_action_steps_only: true
+task:
+  action_dim: 1
+  dataset:
+    _target_: diffusion_policy.dataset.obsavoid_dataset.ObsAvoidDataset
+    horizon: 10
+    max_train_episodes: 90
+    pad_after: 7
+    pad_before: 1
+    seed: 42
+    val_ratio: 0.02
+    zarr_path: data/obsavoid/obsavoid_replay.zarr
+  env_runner:
+    _target_: diffusion_policy.env_runner.obsavoid_runner.ObsAvoidRunner
+    max_steps: 50
+    n_action_steps: 8
+    n_obs_steps: 4
+  keypoint_dim: 0 # FIXME?
+  name: obsavoid_lowdim
+  obs_dim: 32
+task_name: obsavoid_lowdim
+training:
+  checkpoint_every: 5
+  debug: false
+  device: cuda:0
+  gradient_accumulate_every: 1
+  lr_scheduler: cosine
+  lr_warmup_steps: 1000
+  max_train_steps: null
+  max_val_steps: null
+  num_epochs: 8000
+  resume: true
+  rollout_every: 30
+  sample_every: 5
+  seed: 42
+  tqdm_interval_sec: 1.0
+  use_ema: true
+  val_every: 20
+val_dataloader:
+  batch_size: 224
+  num_workers: 1
+  persistent_workers: false
+  pin_memory: true
+  shuffle: false

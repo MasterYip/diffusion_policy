@@ -19,26 +19,24 @@ class RollingDiffusion(ModuleAttrMixin):
 
     def __init__(
         self,
-        x_shape: torch.Size,
-        external_cond_dim: int,
-        is_causal: bool,
+        # x_shape: torch.Size,
+        # external_cond_dim: int,
+        # is_causal: bool,
         cfg: DictConfig,
         #=== model parameters ===
         model: TransformerForRollingDiffusion,
-        horizon,
-        obs_dim,
         action_dim,
-        n_action_steps,
-        n_obs_steps,
-        num_inference_steps=None,
-        obs_as_cond=True,
-        pred_action_steps_only=True,
+        # horizon,
+        # obs_dim,
+        # n_action_steps,
+        # n_obs_steps,
+        # pred_action_steps_only=True,
         # parameters passed to step
         **kwargs
     ):
         super().__init__()
 
-        self.x_shape = x_shape
+        self.x_shape = (action_dim)
         self.timesteps = cfg.timesteps  # Total timesteps
         self.sampling_timesteps = cfg.sampling_timesteps  # Sampling timesteps for DDIM
         self.beta_schedule = cfg.beta_schedule
