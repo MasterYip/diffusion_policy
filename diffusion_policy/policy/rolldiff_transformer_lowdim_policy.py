@@ -4,71 +4,111 @@ from omegaconf import DictConfig
 import torch
 from torch import nn
 from torch.nn import functional as F
-from diffusion_policy.model.diffusion.transformer_for_rolling_diff import TransformerForRollingDiffusion
+from diffusion_policy.model.common.normalizer import LinearNormalizer
+
+from diffusion_policy.model.diffusion.rolling_diffusion import RollingDiffusion
 from diffusion_policy.policy.base_lowdim_policy import BaseLowdimPolicy
+from diffusion_policy.model.diffusion.mask_generator import LowdimMaskGenerator
 import numpy as np
 
 ModelPrediction = namedtuple("ModelPrediction", ["pred_noise", "pred_x_start", "model_out"])
 
 
 class RollDiffTransformerLowdimPolicy(BaseLowdimPolicy):
-    # Special thanks to lucidrains for the implementation of the base RollDiffTransformerLowdimPolicy model
-    # https://github.com/lucidrains/denoising-diffusion-pytorch
 
-    def __init__(
-        self,
-        x_shape: torch.Size,
-        cfg: DictConfig,
-        #=== model parameters ===
-        model: TransformerForRollingDiffusion,
-        horizon,
-        obs_dim,
-        action_dim,
-        n_action_steps,
-        n_obs_steps,
-        num_inference_steps=None,
-        obs_as_cond=True,
-        pred_action_steps_only=True,
-        # parameters passed to step
-        **kwargs
-    ):
+    def __init__(self,
+                 model: RollingDiffusion,
+                 horizon,
+                 obs_dim,
+                 action_dim,
+                 n_action_steps,
+                 n_obs_steps,
+                 max_noise_level=None,
+                 obs_as_cond=False,
+                 pred_action_steps_only=False,
+                 # parameters passed to step
+                 **kwargs):
         super().__init__()
-
-        self.x_shape = x_shape
-        self.timesteps = cfg.timesteps  # Total timesteps
-        self.sampling_timesteps = cfg.sampling_timesteps  # Sampling timesteps for DDIM
-        self.beta_schedule = cfg.beta_schedule
-        self.schedule_fn_kwargs = cfg.schedule_fn_kwargs
-        self.objective = cfg.objective
-        self.use_fused_snr = cfg.use_fused_snr
-        self.snr_clip = cfg.snr_clip
-        self.cum_snr_decay = cfg.cum_snr_decay
-        self.ddim_sampling_eta = cfg.ddim_sampling_eta  # DDIM sampling eta
-        self.clip_noise = cfg.clip_noise
-        self.arch = cfg.architecture
-        self.stabilization_level = cfg.stabilization_level
+        if pred_action_steps_only:
+            assert obs_as_cond
 
         self.model = model
-        self._build_buffer()
+        self.mask_generator = LowdimMaskGenerator(
+            action_dim=action_dim,
+            obs_dim=0 if (obs_as_cond) else obs_dim,
+            max_n_obs_steps=n_obs_steps,
+            fix_obs_steps=True,
+            action_visible=False
+        )
+        self.normalizer = LinearNormalizer()
+        self.horizon = horizon
+        self.obs_dim = obs_dim
+        self.action_dim = action_dim
+        self.n_action_steps = n_action_steps
+        self.n_obs_steps = n_obs_steps
+        self.obs_as_cond = obs_as_cond
+        self.pred_action_steps_only = pred_action_steps_only
+        self.kwargs = kwargs
+
+        # FIXME: temp 1
+        self.frame_stack = 1
+
+        if max_noise_level is None:
+            raise ValueError("max_noise_level must be provided")
+        self.max_noise_level = max_noise_level
+
+        # Cached Trajectory for rolling diffusion
+        self.trajectory = None
+
+    def set_normalizer(self, normalizer: LinearNormalizer):
+        self.normalizer.load_state_dict(normalizer.state_dict())
+
+    def get_optimizer(
+        self, weight_decay: float, learning_rate: float, betas: Tuple[float, float]
+    ) -> torch.optim.Optimizer:
+        # Get transformer optimizer in rolling diffusion
+        return self.model.model.configure_optimizers(
+            weight_decay=weight_decay,
+            learning_rate=learning_rate,
+            betas=tuple(betas))
 
     # Function for rolling diff
+    def _generate_noise_levels(self, batch_size: int, horizon: int) -> torch.Tensor:
+        """ Generate rand noise levels for traning """
+        noise_levels = torch.randint(0, self.max_noise_level, (batch_size, horizon), device=self.device)
+        return noise_levels
 
-    def init_trajectory(self, horizon: int):
-        batch_size = 1
+    def get_noise_mask(self, window=20, zero_noise_pad=20, uncertainty_scale=0.5):
+        """ Linearly increase noise level """
+        zeros = torch.zeros(zero_noise_pad, dtype=torch.int32)
+        increase = torch.tensor([1+uncertainty_scale*k for k in range(window-zero_noise_pad)], dtype=torch.int32)
+        return torch.cat([zeros, increase]).reshape(-1, 1).to(self.device)
+
+    def get_last_noise_mask(self, window=20, zero_noise_pad=20, uncertainty_scale=0.5):
+        """ Shift 1 step back """
+        mask = self.get_noise_mask(window, zero_noise_pad, uncertainty_scale)
+        return torch.cat([mask[1:], mask[-1].unsqueeze(0)]).reshape(-1, 1).to(self.device)
+
+    def get_const_noise_mask(self, window=20, noise_level=1):
+        return torch.tensor([noise_level for _ in range(window)], dtype=torch.int32).reshape(-1, 1).to(self.device)
+
+    def init_trajectory(self, batch_size,  horizon: int, action_dim: int):
         # start = self.make_bundle()
-        plan_tokens = np.ceil(horizon / self.frame_stack).astype(int)
+        plan_horizon = np.ceil(horizon / self.frame_stack).astype(int)
 
-        print("self.x_stacked_shape:", self.x_stacked_shape)
-        chunk = torch.randn((plan_tokens, batch_size, *self.x_stacked_shape), device=self.device)
-        chunk = torch.clamp(chunk, -self.cfg.diffusion.clip_noise, self.cfg.diffusion.clip_noise)
+        chunk = torch.randn((batch_size, plan_horizon, action_dim), device=self.device)
+        # chunk = torch.clamp(chunk, -self.cfg.diffusion.clip_noise, self.cfg.diffusion.clip_noise)
+
         # pad = torch.zeros((pad_tokens, batch_size, *self.x_stacked_shape), device=self.device)
         # init_token = rearrange(self.pad_init(start), "fs b c -> 1 b (fs c)")
         # plan_traj = torch.cat([init_token, chunk, pad], 0)
         plan_traj = chunk
+        # (B,Ta,Da)
         print("plan_traj:", plan_traj.shape)
 
-        self.from_noise_levels = self.get_last_noise_mask(plan_tokens)
-        self.to_noise_levels = self.get_noise_mask(plan_tokens)
+        # Initialize noise levels
+        self.from_noise_levels = self.get_last_noise_mask(plan_horizon)
+        self.to_noise_levels = self.get_noise_mask(plan_horizon)
         return plan_traj
 
     def ddim_step(self, plan_traj, from_noise_levels=None, to_noise_levels=None, condition=None):
@@ -78,104 +118,102 @@ class RollDiffTransformerLowdimPolicy(BaseLowdimPolicy):
         if to_noise_levels is None:
             to_noise_levels = self.to_noise_levels
         # Fix the first token
-        plan_traj[1:] = self.sample_step(
+        plan_traj[1:] = self.model.sample_step(
             plan_traj, condition, from_noise_levels, to_noise_levels, guidance_fn=None
         )[1:]
 
     # interface (copied from diffusion policy)
-    
+
+    def shift_trajectory(self, plan_traj):
+        """ Shift 1 step back """
+        batch_size = plan_traj.shape[0]
+        chunk = torch.randn((batch_size, 1, self.action_dim), device=self.device)
+        return torch.cat([plan_traj[1:], chunk], 0)
+
     def predict_action(self, obs_dict: Dict[str, torch.Tensor]) -> Dict[str, torch.Tensor]:
         """
         obs_dict:
             obs: (B, To, Do)  # To=observation horizon
-        return: 
+        return:
             action: (B, Ta, Da)  # Ta=action horizon
         """
-        # 数据标准化
-        nobs = self.normalizer.normalize(obs_dict['obs'], 'observations')
-        cond = nobs[:, :self.n_obs_steps, :]  # (B, n_obs_steps, Do)
-        
-        # 初始化噪声轨迹
-        batch_size = cond.shape[0]
-        trajectory = torch.randn(
-            (batch_size, self.n_action_steps, self.action_dim),
-            device=cond.device
-        )
-        
-        # DDIM采样过程
-        timesteps = torch.linspace(0, self.timesteps-1, self.sampling_timesteps, device=cond.device).long()
-        
-        for t in reversed(range(0, self.sampling_timesteps)):
-            ts = torch.full((batch_size,), t, device=cond.device, dtype=torch.long)
-            
-            # 生成带噪声的轨迹
-            noisy_trajectory = self.q_sample(
-                x_start=trajectory,
-                t=ts,
-                noise=torch.randn_like(trajectory)
-            )
-            
-            # 模型预测
-            model_pred = self.model_predictions(
-                x=noisy_trajectory,
-                t=ts,
-                external_cond=cond
-            )
-            
-            # 更新轨迹
-            trajectory = model_pred.pred_x_start.detach()
-        
+        """
+        obs_dict: must include "obs" key
+        result: must include "action" key
+        """
+
+        assert 'obs' in obs_dict
+        assert 'past_action' not in obs_dict  # not implemented yet
+        nobs = self.normalizer['obs'].normalize(obs_dict['obs'])
+        B, _, Do = nobs.shape
+        To = self.n_obs_steps
+        assert Do == self.obs_dim
+        T = self.horizon
+        Da = self.action_dim
+
+        # # build input
+        # device = self.device
+        # dtype = self.dtype
+
+        # handle different ways of passing observation
+        cond = None  # Conditions
+        assert self.obs_as_cond  # only support obs_as_cond
+        if self.obs_as_cond:
+            cond = nobs[:, :To]
+            shape = (B, T, Da)
+            if self.pred_action_steps_only:
+                shape = (B, self.n_action_steps, Da)
+            # initialize trajectory if not exist
+            if self.trajectory is None:
+                self.trajectory = self.init_trajectory(*shape)
+
+        self.ddim_step(self.trajectory,
+                       from_noise_levels=self.from_noise_levels,
+                       to_noise_levels=self.to_noise_levels,
+                       condition=cond)
+
         # 反标准化输出
-        unnorm_action = self.normalizer.unnormalize(trajectory, 'actions')
+        unnorm_action = self.normalizer['action'].unnormalize(self.trajectory)
         return {'action': unnorm_action}
 
     def compute_loss(self, batch: Dict[str, torch.Tensor]) -> torch.Tensor:
+        """
+        obs_dict:
+            obs: (B, To, Do)  # To=observation horizon
+        return:
+            action: (B, Ta, Da)  # Ta=action horizon
+        """
         # 数据标准化
-        nobs = self.normalizer.normalize(batch['obs'], 'observations')
-        naction = self.normalizer.normalize(batch['action'], 'actions')
-        
-        # 构建条件
-        cond = nobs[:, :self.n_obs_steps, :]  # (B, n_obs_steps, Do)
-        
-        # 生成噪声时间步
-        batch_size = cond.shape[0]
-        timesteps = torch.randint(
-            0, self.timesteps,
-            (batch_size,), device=cond.device
-        ).long()
-        
-        # 生成噪声
-        noise = torch.randn_like(naction)
-        noisy_actions = self.q_sample(
-            x_start=naction,
-            t=timesteps,
-            noise=noise
-        )
-        
-        # 模型预测
-        model_pred = self.model_predictions(
-            x=noisy_actions,
-            t=timesteps,
-            external_cond=cond
-        )
-        
-        # 计算损失（支持多种预测目标）
-        target = {
-            'pred_noise': noise,
-            'pred_x0': naction,
-            'pred_v': self.predict_v(naction, timesteps, noise)
-        }[self.objective]
-        
-        loss = F.mse_loss(model_pred.model_out, target)
-        return loss
-    
-    # def set_normalizer(self, normalizer: LinearNormalizer):
-    #     self.normalizer.load_state_dict(normalizer.state_dict())
+        assert 'valid_mask' not in batch
+        nbatch = self.normalizer.normalize(batch)
+        obs = nbatch['obs']
+        action = nbatch['action']
 
-    # def get_optimizer(
-    #     self, weight_decay: float, learning_rate: float, betas: Tuple[float, float]
-    # ) -> torch.optim.Optimizer:
-    #     return self.model.configure_optimizers(
-    #         weight_decay=weight_decay,
-    #         learning_rate=learning_rate,
-    #         betas=tuple(betas))
+        # handle different ways of passing observation
+        cond = None
+        trajectory = action
+        if self.obs_as_cond:
+            cond = obs[:, :self.n_obs_steps, :]
+            if self.pred_action_steps_only:
+                To = self.n_obs_steps
+                start = To - 1
+                end = start + self.n_action_steps
+                trajectory = action[:, start:end]
+        else:
+            raise NotImplementedError()
+
+        # generate impainting mask
+        # if self.pred_action_steps_only:
+        #     condition_mask = torch.zeros_like(trajectory, dtype=torch.bool)
+        # else:
+        #     condition_mask = self.mask_generator(trajectory.shape)
+
+        rand_noise_levels = self._generate_noise_levels(trajectory.shape[0], trajectory.shape[1])
+
+        x_pred, loss = self.model(
+            x=trajectory,
+            external_cond=cond,
+            noise_levels=rand_noise_levels,
+        )
+
+        return loss
