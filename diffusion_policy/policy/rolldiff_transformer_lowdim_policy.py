@@ -128,7 +128,7 @@ class RollDiffTransformerLowdimPolicy(BaseLowdimPolicy):
         """ Shift 1 step back """
         batch_size = plan_traj.shape[0]
         chunk = torch.randn((batch_size, 1, self.action_dim), device=self.device)
-        return torch.cat([plan_traj[1:], chunk], 0)
+        return torch.cat([plan_traj[:, 1:, :], chunk], dim=1)
 
     def predict_action(self, obs_dict: Dict[str, torch.Tensor]) -> Dict[str, torch.Tensor]:
         """
@@ -164,7 +164,7 @@ class RollDiffTransformerLowdimPolicy(BaseLowdimPolicy):
             if self.pred_action_steps_only:
                 shape = (B, self.n_action_steps, Da)
             # initialize trajectory if not exist
-            if self.trajectory is None:
+            if self.trajectory is None or self.trajectory.shape != shape:
                 self.trajectory = self.init_trajectory(*shape)
 
         self.ddim_step(self.trajectory,
@@ -172,9 +172,32 @@ class RollDiffTransformerLowdimPolicy(BaseLowdimPolicy):
                        to_noise_levels=self.to_noise_levels,
                        condition=cond)
 
-        # 反标准化输出
-        unnorm_action = self.normalizer['action'].unnormalize(self.trajectory)
-        return {'action': unnorm_action}
+        self.trajectory = self.shift_trajectory(self.trajectory)
+
+        # Unnormalize action
+        nsample = self.trajectory
+        naction_pred = nsample[..., :Da]
+        action_pred = self.normalizer['action'].unnormalize(naction_pred)
+
+        # get action
+        if self.pred_action_steps_only:
+            action = action_pred
+        else:
+            start = To - 1
+            end = start + self.n_action_steps
+            action = action_pred[:, start:end]
+
+        result = {
+            'action': action,
+            'action_pred': action_pred
+        }
+        if not self.obs_as_cond:
+            nobs_pred = nsample[..., Da:]
+            obs_pred = self.normalizer['obs'].unnormalize(nobs_pred)
+            action_obs_pred = obs_pred[:, start:end]
+            result['action_obs_pred'] = action_obs_pred
+            result['obs_pred'] = obs_pred
+        return result
 
     def compute_loss(self, batch: Dict[str, torch.Tensor]) -> torch.Tensor:
         """
@@ -218,5 +241,5 @@ class RollDiffTransformerLowdimPolicy(BaseLowdimPolicy):
 
         loss = reduce(loss, 'b ... -> b (...)', 'mean')
         loss = loss.mean()
-        
+
         return loss

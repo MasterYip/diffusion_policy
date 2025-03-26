@@ -57,7 +57,7 @@ policy:
     _target_: diffusion_policy.model.diffusion.rolling_diffusion.RollingDiffusion
     cfg: # rolling diffusion
       # training
-      objective: pred_x0
+      objective: pred_noise  # FIXME: should align with "epsilon" 
       beta_schedule: cosine
       schedule_fn_kwargs: {}
       clip_noise: 20.0

@@ -204,9 +204,6 @@ class RollingDiffusion(ModuleAttrMixin):
             noise = torch.clamp(noise, -self.clip_noise, self.clip_noise)
 
         # Mix X with Noise according to the scheduled noise level
-        print("q sample \n x_start shape", x_start.shape)
-        print("t shape", t.shape)
-        print("noise shape", noise.shape)
         return (
             extract(self.sqrt_alphas_cumprod, t, x_start.shape) * x_start
             + extract(self.sqrt_one_minus_alphas_cumprod, t, x_start.shape) * noise
