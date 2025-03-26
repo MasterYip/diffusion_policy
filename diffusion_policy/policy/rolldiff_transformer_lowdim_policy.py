@@ -79,16 +79,16 @@ class RollDiffTransformerLowdimPolicy(BaseLowdimPolicy):
         noise_levels = torch.randint(0, self.max_noise_level, (batch_size, horizon), device=self.device)
         return noise_levels
 
-    def get_noise_mask(self, window=20, zero_noise_pad=20, uncertainty_scale=0.5):
+    def get_noise_mask(self, window=20, zero_noise_pad=20, uncertainty_scale=1):
         """ Linearly increase noise level """
         zeros = torch.zeros(zero_noise_pad, dtype=torch.int32)
         increase = torch.tensor([1+uncertainty_scale*k for k in range(window-zero_noise_pad)], dtype=torch.int32)
-        return torch.cat([zeros, increase]).reshape(1, -1).to(self.device)
+        return torch.cat([zeros, increase]).to(self.device)
 
-    def get_last_noise_mask(self, window=20, zero_noise_pad=20, uncertainty_scale=0.5):
+    def get_last_noise_mask(self, window=20, zero_noise_pad=20, uncertainty_scale=1):
         """ Shift 1 step back """
         mask = self.get_noise_mask(window, zero_noise_pad, uncertainty_scale)
-        return torch.cat([mask[1:], mask[-1].unsqueeze(0)]).reshape(1, -1).to(self.device)
+        return torch.cat([mask[1:], mask[-1].unsqueeze(0)]).to(self.device)
 
     def get_const_noise_mask(self, window=20, noise_level=1):
         return torch.tensor([noise_level for _ in range(window)], dtype=torch.int32).reshape(1, -1).to(self.device)
