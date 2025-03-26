@@ -2,6 +2,7 @@ from typing import Optional, Callable, Dict, Tuple
 from collections import namedtuple
 from omegaconf import DictConfig
 import torch
+from einops import rearrange, reduce
 from torch import nn
 from torch.nn import functional as F
 from diffusion_policy.model.common.normalizer import LinearNormalizer
@@ -216,4 +217,7 @@ class RollDiffTransformerLowdimPolicy(BaseLowdimPolicy):
             noise_levels=rand_noise_levels,
         )
 
+        loss = reduce(loss, 'b ... -> b (...)', 'mean')
+        loss = loss.mean()
+        
         return loss

@@ -133,7 +133,6 @@ class RollingDiffusion(ModuleAttrMixin):
         return rearrange(x, f"... -> ...{' 1' * len(self.x_shape)}")
 
     def model_predictions(self, x, t, external_cond=None):
-        print("x shape in model_predictions", x.shape)
         # TODO: check shape of x, t, external_cond
         model_output = self.model(x, t, external_cond)
 

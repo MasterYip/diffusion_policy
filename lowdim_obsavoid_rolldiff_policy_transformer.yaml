@@ -90,6 +90,7 @@ policy:
       p_drop_attn: 0.3
       p_drop_emb: 0.0
       time_as_cond: true
+      max_noise_level: 100
     action_dim: 1
   action_dim: 1
   horizon: 10

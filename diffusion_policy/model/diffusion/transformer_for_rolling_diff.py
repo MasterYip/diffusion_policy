@@ -3,7 +3,7 @@ Author: MasterYip 2205929492@qq.com
 Date: 2025-03-24 17:27:45
 Description: file content
 FilePath: /diffusion_policy/diffusion_policy/model/diffusion/transformer_for_rolling_diff.py
-LastEditTime: 2025-03-26 11:36:44
+LastEditTime: 2025-03-26 15:37:45
 LastEditors: Raymon Yip
 '''
 from typing import Union, Optional, Tuple
@@ -84,7 +84,9 @@ class TransformerForRollingDiffusion(ModuleAttrMixin):
                  time_as_cond: bool = True,
                  obs_as_cond: bool = False,
                  # Encoder layers
-                 n_cond_layers: int = 0
+                 n_cond_layers: int = 0,
+                 # Noise Level
+                 max_noise_level: int = 100
                  ) -> None:
         super().__init__()
 
@@ -106,7 +108,7 @@ class TransformerForRollingDiffusion(ModuleAttrMixin):
         self.input_emb = nn.Linear(input_dim, n_emb)
         # PROBLEM: What is the purpose of pos_emb, why not using sine pos emb?
         self.pos_emb = nn.Parameter(torch.zeros(1, T, n_emb))  # This is trainable
-        self.noise_level_emb = nn.Parameter(torch.zeros(1, T, n_emb))
+        self.noise_level_emb = nn.Parameter(torch.zeros(1, max_noise_level, n_emb))
         self.drop = nn.Dropout(p_drop_emb)
 
         # cond encoder
@@ -184,14 +186,17 @@ class TransformerForRollingDiffusion(ModuleAttrMixin):
             mask = mask.float().masked_fill(mask == 0, float('-inf')).masked_fill(mask == 1, float(0.0))
             self.register_buffer("mask", mask)
 
+            # FIXME: noise time step not as condition
             if time_as_cond and obs_as_cond:
-                S = T_cond
+                S = T_cond - 1  # 排除时间后的条件序列长度
+                # 生成网格时，s 从 0 开始（对应观测条件的起始位置）
                 t, s = torch.meshgrid(
                     torch.arange(T),
                     torch.arange(S),
                     indexing='ij'
                 )
-                mask = t >= (s-1)  # add one dimension since time is the first token in cond
+                # 时间后的观测条件掩码：t >= s（而不是 t >= s-1）
+                mask = t >= s
                 mask = mask.float().masked_fill(mask == 0, float('-inf')).masked_fill(mask == 1, float(0.0))
                 self.register_buffer('memory_mask', mask)
             else:
@@ -356,13 +361,15 @@ class TransformerForRollingDiffusion(ModuleAttrMixin):
         # timesteps = timesteps.expand(sample.shape[0])
         # time_emb = self.time_emb(timesteps).unsqueeze(1)  # Turn to time_emb
 
+
         # assert noise level shape
         assert noise_level.shape == sample.shape[:2]
         # PROBLEM: to learn or not to learn
         noise_levels = noise_level  # (B,T)
         # convert to indices of noise level embeddings
-        noise_levels = noise_levels.long()
-        noise_level_embeddings = self.noise_level_emb[noise_levels]
+        noise_levels = noise_levels.long()  # (B,T)
+        # self.noise_level_emb (1, T, n_emb)
+        noise_level_embeddings = self.noise_level_emb[:, noise_levels, :].squeeze(0)
         # (B,T,n_emb)
 
         # process input
@@ -386,6 +393,7 @@ class TransformerForRollingDiffusion(ModuleAttrMixin):
             # encoder
             # cond_embeddings = time_emb
             # if self.obs_as_cond:  # Must be True
+            print("Encoder")
             cond_obs_emb = self.cond_obs_emb(cond)
             # (B,To,n_emb)
             cond_embeddings = cond_obs_emb
@@ -393,18 +401,20 @@ class TransformerForRollingDiffusion(ModuleAttrMixin):
             position_embeddings = self.cond_pos_emb[
                 :, :tc, :
             ]  # each position maps to a (learnable) vector
-            x = self.drop(cond_embeddings + position_embeddings + noise_level_embeddings)
+            x = self.drop(cond_embeddings + position_embeddings)
             x = self.encoder(x)
             memory = x
             # (B,T_cond,n_emb)
 
+            print("Decoder")
             # decoder
             token_embeddings = input_emb
             t = token_embeddings.shape[1]
             position_embeddings = self.pos_emb[
                 :, :t, :
             ]  # each position maps to a (learnable) vector
-            x = self.drop(token_embeddings + position_embeddings)  # Add positional embeddings (time dimension)
+            # Add positional embeddings (time dimension)
+            x = self.drop(token_embeddings + position_embeddings + noise_level_embeddings)
             # (B,T,n_emb)
             x = self.decoder(
                 tgt=x,
