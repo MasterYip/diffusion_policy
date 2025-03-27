@@ -23,7 +23,7 @@ python train.py \
 --config-dir=. \
 --config-name=lowdim_obsavoid_rolldiff_policy_transformer.yaml \
 training.seed=42 training.device=cuda:0 \
-hydra.run.dir='data/outputs/2025.03.27/11.49.53_train_diffusion_transformer_lowdim_obsavoid_lowdim'
+hydra.run.dir='data/outputs/2025.03.27/14.14.53_train_diffusion_transformer_lowdim_obsavoid_lowdim'
 ```
 
 **Obs Avoid**

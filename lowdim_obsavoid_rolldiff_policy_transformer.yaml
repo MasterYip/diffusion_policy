@@ -9,7 +9,7 @@ checkpoint:
     mode: max
     monitor_key: test_mean_score
 dataloader:
-  batch_size: 1024
+  batch_size: 512
   num_workers: 1
   persistent_workers: false
   pin_memory: true
@@ -22,7 +22,7 @@ ema:
   power: 0.75
   update_after_step: 0
 exp_name: default
-horizon: 20
+horizon: 40
 keypoint_visible_rate: 1.0 # FIXME: unused
 logging:
   group: null
@@ -38,7 +38,7 @@ logging:
 multi_run:
   run_dir: data/outputs/2023.01.16/20.11.42_train_diffusion_transformer_lowdim_obsavoid_lowdim
   wandb_name_base: 2023.01.16-20.11.42_train_diffusion_transformer_lowdim_obsavoid_lowdim
-n_action_steps: 18
+n_action_steps: 38
 n_latency_steps: 0
 n_obs_steps: 4
 name: train_diffusion_transformer_lowdim
@@ -79,7 +79,7 @@ policy:
       _target_: diffusion_policy.model.diffusion.transformer_for_rolling_diff.TransformerForRollingDiffusion
       causal_attn: true
       cond_dim: 32
-      horizon: 20
+      horizon: 40
       input_dim: 1 # Action input
       n_cond_layers: 0
       n_emb: 256 # Embedding dimension
@@ -94,8 +94,8 @@ policy:
       max_noise_level: 100
     action_dim: 1
   action_dim: 1
-  horizon: 20
-  n_action_steps: 18
+  horizon: 40
+  n_action_steps: 38
   n_obs_steps: 4
   max_noise_level: 100
   obs_as_cond: true
@@ -106,7 +106,7 @@ task:
   action_dim: 1
   dataset:
     _target_: diffusion_policy.dataset.obsavoid_dataset.ObsAvoidDataset
-    horizon: 20
+    horizon: 40
     max_train_episodes: 90
     pad_after: 7
     pad_before: 1
@@ -116,7 +116,7 @@ task:
   env_runner:
     _target_: diffusion_policy.env_runner.obsavoid_runner.ObsAvoidRunner
     max_steps: 500
-    n_action_steps: 18
+    n_action_steps: 38
     n_obs_steps: 4
   keypoint_dim: 0 # FIXME?
   name: obsavoid_lowdim
@@ -140,7 +140,7 @@ training:
   use_ema: true
   val_every: 20
 val_dataloader:
-  batch_size: 1024
+  batch_size: 512
   num_workers: 1
   persistent_workers: false
   pin_memory: true

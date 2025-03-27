@@ -1,3 +1,4 @@
+from math import exp
 from typing import Optional, Callable, Dict, Tuple
 from collections import namedtuple
 from omegaconf import DictConfig
@@ -13,6 +14,15 @@ from diffusion_policy.model.diffusion.mask_generator import LowdimMaskGenerator
 import numpy as np
 
 ModelPrediction = namedtuple("ModelPrediction", ["pred_noise", "pred_x_start", "model_out"])
+
+
+def exp_noise_mask(horizon, max_noise_level, sigma=2.0, pad_zero=1,
+                   dtype=torch.int64):
+    zeros = torch.zeros(pad_zero)
+    len_exp = horizon - pad_zero
+    exps = torch.tensor([exp((k-len_exp)*sigma / len_exp) for k in range(len_exp)])
+    exps = ((exps - exp(-sigma)) / (1.0 - exp(-sigma)) * max_noise_level)
+    return torch.cat([zeros, exps]).to(dtype)
 
 
 class RollDiffTransformerLowdimPolicy(BaseLowdimPolicy):
@@ -85,10 +95,14 @@ class RollDiffTransformerLowdimPolicy(BaseLowdimPolicy):
         increase = torch.tensor([uncertainty_scale*(k+1) for k in range(window-zero_noise_pad)], dtype=torch.int32)
         return torch.cat([zeros, increase]).to(self.device)
 
+    # DEPRECATED
     def get_last_noise_mask(self, window=20, zero_noise_pad=20, uncertainty_scale=1):
         """ Shift 1 step back """
         mask = self.get_noise_mask(window, zero_noise_pad, uncertainty_scale)
         return torch.cat([mask[1:], mask[-1].unsqueeze(0)]).to(self.device)
+
+    def shifted_noise_mask(self, noise_mask):
+        return torch.cat([noise_mask[:, 1:], noise_mask[:, -1].unsqueeze(1)], dim=1).to(self.device)
 
     def get_const_noise_mask(self, window=20, noise_level=1):
         return torch.tensor([noise_level for _ in range(window)]).unsqueeze(0).long().to(self.device)
@@ -107,10 +121,13 @@ class RollDiffTransformerLowdimPolicy(BaseLowdimPolicy):
         # (B,Ta,Da)
 
         # Initialize noise levels
-        self.from_noise_levels = self.get_last_noise_mask(
-            plan_horizon, 1, self.max_noise_level/plan_horizon).repeat(batch_size, 1).long().to(self.device)
-        self.to_noise_levels = self.get_noise_mask(plan_horizon, 1, self.max_noise_level /
-                                                   plan_horizon).repeat(batch_size, 1).long().to(self.device)
+        # self.from_noise_levels = self.get_last_noise_mask(
+        #     plan_horizon, 1, self.max_noise_level/plan_horizon).repeat(batch_size, 1).long().to(self.device)
+        # self.to_noise_levels = self.get_noise_mask(plan_horizon, 1, self.max_noise_level /
+        #                                            plan_horizon).repeat(batch_size, 1).long().to(self.device)
+        self.to_noise_levels = exp_noise_mask(plan_horizon, self.max_noise_level,
+                                              sigma=2.0, pad_zero=1).repeat(batch_size, 1).to(self.device)
+        self.from_noise_levels = self.shifted_noise_mask(self.to_noise_levels)
         return plan_traj
 
     def ddim_step(self, plan_traj, from_noise_levels=None, to_noise_levels=None, condition=None):
@@ -176,8 +193,10 @@ class RollDiffTransformerLowdimPolicy(BaseLowdimPolicy):
             if self.trajectory is None or self.trajectory.shape != shape:
                 self.trajectory = self.init_trajectory(*shape)
                 for i in range(self.horizon):
-                    from_noise_levels = self.get_const_noise_mask(shape[1], self.max_noise_level*(1 - i/self.horizon)-1).repeat(B, 1)
-                    to_noise_levels = self.get_const_noise_mask(shape[1], self.max_noise_level*(1 - (i+1)/self.horizon)-1).repeat(B, 1)
+                    from_noise_levels = self.get_const_noise_mask(
+                        shape[1], self.max_noise_level*(1 - i/self.horizon)-1).repeat(B, 1)
+                    to_noise_levels = self.get_const_noise_mask(
+                        shape[1], self.max_noise_level*(1 - (i+1)/self.horizon)-1).repeat(B, 1)
                     self.ddim_step(self.trajectory,
                                    from_noise_levels=from_noise_levels,
                                    to_noise_levels=to_noise_levels, condition=cond)
