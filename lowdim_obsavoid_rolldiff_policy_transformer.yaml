@@ -9,7 +9,7 @@ checkpoint:
     mode: max
     monitor_key: test_mean_score
 dataloader:
-  batch_size: 1024
+  batch_size: 712
   num_workers: 1
   persistent_workers: false
   pin_memory: true
@@ -66,9 +66,9 @@ policy:
       use_fused_snr: False
       snr_clip: 5.0
       cum_snr_decay: 0.98
-      timesteps: 100
+      timesteps: 100  # Align with max_noise_level
       # sampling
-      sampling_timesteps: 10 # FIXME: numer of diffusion steps, should be increased
+      sampling_timesteps: 10 # FIXME: timesteps of DDIM (Not used temporarily)
       # NOTE: When sampling timestep < timesteps, ddim is used.
       ddim_sampling_eta: 0.5
       stabilization_level: 10
@@ -139,7 +139,7 @@ training:
   use_ema: true
   val_every: 20
 val_dataloader:
-  batch_size: 1024
+  batch_size: 712
   num_workers: 1
   persistent_workers: false
   pin_memory: true

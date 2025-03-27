@@ -82,7 +82,7 @@ class RollDiffTransformerLowdimPolicy(BaseLowdimPolicy):
     def get_noise_mask(self, window=20, zero_noise_pad=20, uncertainty_scale=1):
         """ Linearly increase noise level """
         zeros = torch.zeros(zero_noise_pad, dtype=torch.int32)
-        increase = torch.tensor([1+uncertainty_scale*k for k in range(window-zero_noise_pad)], dtype=torch.int32)
+        increase = torch.tensor([uncertainty_scale*(k+1) for k in range(window-zero_noise_pad)], dtype=torch.int32)
         return torch.cat([zeros, increase]).to(self.device)
 
     def get_last_noise_mask(self, window=20, zero_noise_pad=20, uncertainty_scale=1):
@@ -91,7 +91,7 @@ class RollDiffTransformerLowdimPolicy(BaseLowdimPolicy):
         return torch.cat([mask[1:], mask[-1].unsqueeze(0)]).to(self.device)
 
     def get_const_noise_mask(self, window=20, noise_level=1):
-        return torch.tensor([noise_level for _ in range(window)], dtype=torch.int32).reshape(1, -1).to(self.device)
+        return torch.tensor([noise_level for _ in range(window)]).unsqueeze(0).long().to(self.device)
 
     def init_trajectory(self, batch_size,  horizon: int, action_dim: int):
         # start = self.make_bundle()
@@ -107,8 +107,10 @@ class RollDiffTransformerLowdimPolicy(BaseLowdimPolicy):
         # (B,Ta,Da)
 
         # Initialize noise levels
-        self.from_noise_levels = self.get_last_noise_mask(plan_horizon, 1).long().repeat(batch_size, 1)
-        self.to_noise_levels = self.get_noise_mask(plan_horizon, 1).long().repeat(batch_size, 1)
+        self.from_noise_levels = self.get_last_noise_mask(
+            plan_horizon, 1, self.max_noise_level/plan_horizon).repeat(batch_size, 1).long().to(self.device)
+        self.to_noise_levels = self.get_noise_mask(plan_horizon, 1, self.max_noise_level /
+                                                   plan_horizon).repeat(batch_size, 1).long().to(self.device)
         return plan_traj
 
     def ddim_step(self, plan_traj, from_noise_levels=None, to_noise_levels=None, condition=None):
@@ -118,9 +120,16 @@ class RollDiffTransformerLowdimPolicy(BaseLowdimPolicy):
         if to_noise_levels is None:
             to_noise_levels = self.to_noise_levels
         # Fix the first token
-        plan_traj[1:] = self.model.sample_step(
-            plan_traj, condition, from_noise_levels, to_noise_levels, guidance_fn=None
-        )[1:]
+        # plan_traj[:, 1:] = self.model.sample_step(
+        #     plan_traj, condition, from_noise_levels, to_noise_levels, guidance_fn=None
+        # )[:, 1:]
+        plan_traj[:, 1:] = self.model.ddim_sample_step(
+            x=plan_traj,
+            external_cond=condition,
+            curr_noise_level=from_noise_levels,
+            next_noise_level=to_noise_levels,
+            guidance_fn=None,
+        )[:, 1:]
 
     # interface (copied from diffusion policy)
 
@@ -166,6 +175,12 @@ class RollDiffTransformerLowdimPolicy(BaseLowdimPolicy):
             # initialize trajectory if not exist
             if self.trajectory is None or self.trajectory.shape != shape:
                 self.trajectory = self.init_trajectory(*shape)
+                for i in range(self.horizon):
+                    from_noise_levels = self.get_const_noise_mask(shape[1], self.max_noise_level*(1 - i/self.horizon)-1)
+                    to_noise_levels = self.get_const_noise_mask(shape[1], self.max_noise_level*(1 - (i+1)/self.horizon)-1)
+                    self.ddim_step(self.trajectory,
+                                   from_noise_levels=from_noise_levels,
+                                   to_noise_levels=to_noise_levels, condition=cond)
 
         self.ddim_step(self.trajectory,
                        from_noise_levels=self.from_noise_levels,
