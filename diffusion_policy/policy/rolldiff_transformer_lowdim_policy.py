@@ -176,8 +176,8 @@ class RollDiffTransformerLowdimPolicy(BaseLowdimPolicy):
             if self.trajectory is None or self.trajectory.shape != shape:
                 self.trajectory = self.init_trajectory(*shape)
                 for i in range(self.horizon):
-                    from_noise_levels = self.get_const_noise_mask(shape[1], self.max_noise_level*(1 - i/self.horizon)-1)
-                    to_noise_levels = self.get_const_noise_mask(shape[1], self.max_noise_level*(1 - (i+1)/self.horizon)-1)
+                    from_noise_levels = self.get_const_noise_mask(shape[1], self.max_noise_level*(1 - i/self.horizon)-1).repeat(B, 1)
+                    to_noise_levels = self.get_const_noise_mask(shape[1], self.max_noise_level*(1 - (i+1)/self.horizon)-1).repeat(B, 1)
                     self.ddim_step(self.trajectory,
                                    from_noise_levels=from_noise_levels,
                                    to_noise_levels=to_noise_levels, condition=cond)
