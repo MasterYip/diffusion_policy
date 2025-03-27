@@ -112,7 +112,7 @@ task:
     pad_before: 1
     seed: 42
     val_ratio: 0.02
-    zarr_path: data/obsavoid/obsavoid_replay_dyctrl.zarr
+    zarr_path: data/obsavoid/obsavoid_replay.zarr
   env_runner:
     _target_: diffusion_policy.env_runner.obsavoid_runner.ObsAvoidRunner
     max_steps: 500
