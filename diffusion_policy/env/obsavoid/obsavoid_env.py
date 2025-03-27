@@ -27,6 +27,7 @@ class Obstacle1dEnv(object):
 
         # Acc Scaling: scaling for acceleration action input
         self.acc_scale = 1
+        self.acc_bd = [-500, 500]
         # Vel Scaling: scaling for velocity observation output
         self.vel_scale = 10
         self.dy_scale = 0.001
@@ -140,7 +141,12 @@ class Obstacle1dEnv(object):
         return state + sdf_obs
 
     def get_action(self):
-        return [self.pid_ctrl()/self.acc_scale]
+        acc = self.pid_ctrl()/self.acc_scale
+        if acc > self.acc_bd[1]:
+            acc = self.acc_bd[1]
+        elif acc < self.acc_bd[0]:
+            acc = self.acc_bd[0]
+        return [acc]
 
     def get_action_y(self):
         return [self.y]

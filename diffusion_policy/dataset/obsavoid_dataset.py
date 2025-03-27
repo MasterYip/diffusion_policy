@@ -65,6 +65,16 @@ class ObsAvoidDataset(BaseLowdimDataset):
         data = self._sample_to_data(self.replay_buffer)
         normalizer = LinearNormalizer()
         normalizer.fit(data=data, last_n_dims=1, mode=mode, **kwargs)
+        
+        def print_param_dict(param_dict):
+            for key, value in param_dict.items():
+                if isinstance(value, torch.nn.ParameterDict):
+                    print(key)
+                    print_param_dict(value)
+                else:
+                    print(key, value)
+        # print_param_dict(normalizer.params_dict)
+        
         return normalizer
 
     def get_all_actions(self) -> torch.Tensor:

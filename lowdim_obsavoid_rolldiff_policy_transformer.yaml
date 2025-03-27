@@ -9,7 +9,7 @@ checkpoint:
     mode: max
     monitor_key: test_mean_score
 dataloader:
-  batch_size: 712
+  batch_size: 1024
   num_workers: 1
   persistent_workers: false
   pin_memory: true
@@ -57,6 +57,7 @@ policy:
     _target_: diffusion_policy.model.diffusion.rolling_diffusion.RollingDiffusion
     cfg: # rolling diffusion
       # training
+      # BUG: pred_noise is not fully supported for now (divergent rapidly)
       objective: pred_x0  # FIXME: should align with "epsilon" 
       beta_schedule: cosine
       schedule_fn_kwargs: {}
@@ -139,7 +140,7 @@ training:
   use_ema: true
   val_every: 20
 val_dataloader:
-  batch_size: 712
+  batch_size: 1024
   num_workers: 1
   persistent_workers: false
   pin_memory: true
