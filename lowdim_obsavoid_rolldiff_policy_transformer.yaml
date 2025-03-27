@@ -115,7 +115,7 @@ task:
     zarr_path: data/obsavoid/obsavoid_replay.zarr
   env_runner:
     _target_: diffusion_policy.env_runner.obsavoid_runner.ObsAvoidRunner
-    max_steps: 50
+    max_steps: 500
     n_action_steps: 8
     n_obs_steps: 4
   keypoint_dim: 0 # FIXME?
