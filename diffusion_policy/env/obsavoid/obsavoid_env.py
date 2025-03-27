@@ -20,6 +20,8 @@ class Obstacle1dEnv(object):
         self.v = v
         self.t = 0
         self.y_hist = []
+
+        # Configs
         self.hist_len = 1000
 
         # Default Obs Point Param
@@ -41,10 +43,10 @@ class Obstacle1dEnv(object):
         self.bounds = []
 
         # vis
-        self.vis = vis
+        self.enable_vis = vis
         self.vis_time_window = 1
         self.bd_vis_sample = 100
-        if self.vis:
+        if self.enable_vis:
             self.fig = plt.figure()
             self.ax = self.fig.add_subplot(111)
             plt.show(block=False)
@@ -57,21 +59,21 @@ class Obstacle1dEnv(object):
     def add_boundfunc(self, lb_fun, ub_fun):
         self.bounds.append((lb_fun, ub_fun))
 
-    def step_env(self, acc=0.0, vis=None):
+    def step_env(self, act=0.0, vis=None):
         """Step env
         Args:
-            acc (float, optional): Acc scaled. Defaults to 0.0.
+            act (float, optional): Acc scaled. Defaults to 0.0.
         """
         self.t += self.env_step
         self.y += self.v * self.env_step
-        self.v += acc * self.env_step * self.acc_scale
+        self.v += act * self.env_step * self.acc_scale
         self.y_hist.append(self.y)
         if len(self.y_hist) > self.hist_len:
             self.y_hist.pop(0)
-        if vis != False and self.vis:
+        if vis is not False and self.enable_vis:
             self.vis_step()
 
-    def step_env_y(self, y):
+    def step_env_y(self, y, vis=None):
         """Step env with y
         Args:
             y (float): y
@@ -81,10 +83,10 @@ class Obstacle1dEnv(object):
         self.y_hist.append(self.y)
         if len(self.y_hist) > self.hist_len:
             self.y_hist.pop(0)
-        if self.vis:
+        if vis is not False and self.enable_vis:
             self.vis_step()
 
-    def step_env_dy(self, dy):
+    def step_env_dy(self, dy, vis=None):
         """Step env with dy
         Args:
             dy (float): dy
@@ -94,7 +96,7 @@ class Obstacle1dEnv(object):
         self.y_hist.append(self.y)
         if len(self.y_hist) > self.hist_len:
             self.y_hist.pop(0)
-        if self.vis:
+        if vis is not False and self.enable_vis:
             self.vis_step()
 
     # Reference
@@ -107,7 +109,7 @@ class Obstacle1dEnv(object):
                 values.append(bd[1](t) - y)
             else:
                 values.append(y - bd[0](t))
-        return max(values)
+        return max(values) if values else 0
 
     def get_ref_target(self):
         """Heuristic target for PID
@@ -175,13 +177,31 @@ class Obstacle1dEnv(object):
         self.ax.set_xlim(self.t-self.vis_time_window, self.t+self.vis_time_window)
         plt.pause(0.00001)
 
+    def vis_rollout(self, actions, ctrl_mode='acc'):
+        # Cache current state
+        cached_state = [self.y, self.v, self.t, self.y_hist.copy()]
+        Y = []
+        T = []
+        for act in actions:
+            if ctrl_mode == 'acc':
+                self.step_env(act, vis=False)
+            elif ctrl_mode == 'y':
+                self.step_env_y(act, vis=False)
+            elif ctrl_mode == 'dy':
+                self.step_env_dy(act, vis=False)
+            Y.append(self.y)
+            T.append(self.t)
+        self.vis_scatter(T, Y)
+        # Restore state
+        self.y, self.v, self.t, self.y_hist = cached_state
+
     def vis_scatter(self, T, Y):
         # scatter marker size is 1
         self.ax.scatter(T, Y, s=1)
         plt.pause(0.00001)
 
     def end(self):
-        if self.vis:
+        if self.enable_vis:
             plt.close()
 
 

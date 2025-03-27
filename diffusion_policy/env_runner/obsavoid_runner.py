@@ -54,13 +54,15 @@ class ObsAvoidRunner(BaseLowdimRunner):
             print("action:", [actframe[0] for actframe in np_action_dict["action"][0]])
 
             if ctrl_mode == 'acc':
-                env.step_env(acc=np_action_dict["action"][0, 0, 0])
+                env.step_env(act=np_action_dict["action"][0, 0, 0])
             elif ctrl_mode == 'y':
                 env.step_env_y(y=np_action_dict["action"][0, 0, 0])
             elif ctrl_mode == 'dy':
                 env.step_env_dy(dy=np_action_dict["action"][0, 0, 0])
             else:
                 raise ValueError("Invalid ctrl_mode")
+
+            env.vis_rollout(np_action_dict["action"][0, :, 0], ctrl_mode=ctrl_mode)
 
             ema_reward = env.get_reward() * (1-ema_coeff) + ema_reward * ema_coeff
 
