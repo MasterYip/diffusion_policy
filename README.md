@@ -26,6 +26,14 @@ training.seed=42 training.device=cuda:0 \
 hydra.run.dir='data/outputs/2025.03.27/14.14.53_train_diffusion_transformer_lowdim_obsavoid_lowdim'
 ```
 
+Eval
+
+Run the evaluation script:
+
+```bash
+python eval.py --checkpoint data/rolldiff_obsavoid_acc_0327.ckpt --output_dir data/obsavoid_output --device cuda:0
+```
+
 **Obs Avoid**
 
 ```bash
