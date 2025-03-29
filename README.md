@@ -3,7 +3,7 @@
 ## Train & Eval
 
 ```bash
-conda activate robodiff
+conda activate diffuseloco
 ```
 
 **Obs Avoid Rolling Diffusion**
