@@ -150,10 +150,13 @@ class RollDiffTransformerLowdimPolicy(BaseLowdimPolicy):
 
     # interface (copied from diffusion policy)
 
-    def shift_trajectory(self, plan_traj):
+    def shift_trajectory(self, plan_traj, append_noise=False):
         """ Shift 1 step back """
         batch_size = plan_traj.shape[0]
-        chunk = torch.randn((batch_size, 1, self.action_dim), device=self.device)
+        if append_noise:
+            chunk = torch.randn((batch_size, 1, self.action_dim), device=self.device)
+        else:
+            chunk = plan_traj[:, -1:, :]
         return torch.cat([plan_traj[:, 1:, :], chunk], dim=1)
 
     def predict_action(self, obs_dict: Dict[str, torch.Tensor]) -> Dict[str, torch.Tensor]:

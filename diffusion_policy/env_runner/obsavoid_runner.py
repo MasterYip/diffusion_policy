@@ -22,9 +22,11 @@ class ObsAvoidRunner(BaseLowdimRunner):
         self.n_action_steps = n_action_steps
         self.max_steps = max_steps
 
-    def run(self, policy: BaseLowdimPolicy, ctrl_mode='acc'):
+    def run(self, policy: BaseLowdimPolicy, ctrl_mode='acc', seed=20):
         device = policy.device
         dtype = policy.dtype
+        # set seed
+        np.random.seed(seed)
         env = randpath_bound_env(True, env_step=0.01)
         # env = sine_bound_env(True, y=0, v=0, env_step=0.01)
         obs = env.get_observation()
