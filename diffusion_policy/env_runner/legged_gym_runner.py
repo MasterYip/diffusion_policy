@@ -1,0 +1,200 @@
+'''
+Author: Raymon Yip 2205929492@qq.com
+Date: 2025-03-29 19:34:29
+Description: file content
+FilePath: /PredictiveDiffusionPlanner_Dev/diffusion_policy/diffusion_policy/env_runner/legged_gym_runner.py
+LastEditTime: 2025-03-29 19:34:29
+LastEditors: Raymon Yip
+'''
+
+import os
+import numpy as np
+import torch
+import tqdm
+import time
+from typing import Dict, Optional, Tuple, Any
+
+from diffusion_policy.policy.base_lowdim_policy import BaseLowdimPolicy
+from diffusion_policy.env_runner.base_lowdim_runner import BaseLowdimRunner
+from diffusion_policy.env.legged_gym.legged_gym_env import LeggedGymEnv
+
+# Note: The actual import should point to where LeggedGymEnv is located in your project
+# This is a placeholder and should be updated when integrating with your project
+# from legged_gym_cmp.legged_gym.legged_gym.legged_gym_env import LeggedGymEnv
+
+
+class LeggedGymRunner(BaseLowdimRunner):
+    """
+    Runner for legged gym environments that interfaces with diffusion policies.
+    """
+
+    def __init__(self,
+                 output_dir: str,
+                 task_name: str = "anymal_c_flat",
+                 n_train: int = 10,
+                 n_train_vis: int = 3,
+                 train_start_seed: int = 0,
+                 n_test: int = 22,
+                 n_test_vis: int = 6,
+                 test_start_seed: int = 10000,
+                 max_steps: int = 1000,
+                 n_obs_steps: int = 8,
+                 n_action_steps: int = 8,
+                 n_latency_steps: int = 0,
+                 fps: int = 50,
+                 tqdm_interval_sec: float = 5.0,
+                 n_envs: int = 4,
+                 headless: bool = True,
+                 device: Optional[str] = None,
+                 ):
+        """
+        Initialize the LeggedGymRunner.
+
+        Args:
+            output_dir: Directory to save outputs
+            task_name: Name of the legged gym task
+            n_train: Number of training episodes
+            n_train_vis: Number of training episodes to visualize
+            train_start_seed: Starting seed for training episodes
+            n_test: Number of test episodes
+            n_test_vis: Number of test episodes to visualize
+            test_start_seed: Starting seed for test episodes
+            max_steps: Maximum number of steps per episode
+            n_obs_steps: Number of observation steps for the policy
+            n_action_steps: Number of action steps to predict
+            n_latency_steps: Number of latency steps
+            fps: Frames per second for visualization
+            tqdm_interval_sec: Interval for tqdm updates
+            n_envs: Number of parallel environments
+            headless: If True, disable visualization
+            device: Device to run on (if None, use policy device)
+        """
+        super().__init__(output_dir)
+
+        self.task_name = task_name
+        self.max_steps = max_steps
+        self.n_obs_steps = n_obs_steps
+        self.n_action_steps = n_action_steps
+        self.n_latency_steps = n_latency_steps
+        self.fps = fps
+        self.tqdm_interval_sec = tqdm_interval_sec
+        self.device = device
+
+        # Create the environment
+        # Note: When integrating with your project, replace this placeholder with actual env creation
+        # self.env = LeggedGymEnv(
+        #     task_name=task_name,
+        #     num_envs=n_envs,
+        #     headless=headless
+        # )
+        self.env = None  # Placeholder, should be initialized in actual implementation
+
+        # Ensure the observation history is sufficient for the policy
+        self.history_len = n_obs_steps
+
+    def run(self, policy: BaseLowdimPolicy) -> Dict:
+        """
+        Run the policy in the environment.
+
+        Args:
+            policy: The policy to run
+
+        Returns:
+            Dictionary containing run results
+        """
+        # Ensure environment is initialized
+        if self.env is None:
+            raise ValueError("Environment not initialized. Please initialize before running.")
+
+        # Use policy device if no device specified
+        if self.device is None:
+            device = policy.device
+        else:
+            device = torch.device(self.device)
+
+        dtype = policy.dtype
+
+        # Reset the environment
+        obs, _ = self.env.reset()
+
+        # Initialize progress bar
+        pbar = tqdm.tqdm(
+            total=self.max_steps,
+            desc=f"Evaluating {self.task_name}",
+            leave=False,
+            mininterval=self.tqdm_interval_sec
+        )
+
+        # Initialize observation history
+        # Format for the state history: [num_envs, history_len, obs_dim]
+        state_history = torch.zeros(
+            (self.env.num_envs, self.history_len, self.env.num_obs),
+            dtype=dtype,
+            device=device
+        )
+
+        # Initialize metrics
+        episode_lengths = []
+        episode_rewards = []
+        current_episode_rewards = torch.zeros(self.env.num_envs, device=device)
+
+        # Fill initial state history with the first observation
+        for i in range(self.history_len):
+            state_history[:, i, :] = obs
+
+        for step_idx in range(self.max_steps):
+            # Prepare observations for the policy
+            obs_dict = {"obs": state_history}
+
+            # Get actions from policy
+            with torch.no_grad():
+                action_dict = policy.predict_action(obs_dict)
+                actions = action_dict["action_pred"][:, 0, :]  # Take first predicted action
+
+            # Step the environment
+            obs, rewards, dones, info = self.env.step(actions)
+
+            # Update state history
+            if step_idx < self.max_steps - 1:  # No need to update on the last step
+                state_history = torch.roll(state_history, shifts=-1, dims=1)
+                state_history[:, -1, :] = obs
+
+            # Accumulate rewards
+            current_episode_rewards += rewards
+
+            # Handle episode terminations
+            if dones.any():
+                # Get indices of terminated episodes
+                done_indices = torch.where(dones)[0]
+
+                for idx in done_indices:
+                    # Record metrics for terminated episodes
+                    episode_rewards.append(current_episode_rewards[idx].item())
+                    episode_lengths.append(step_idx + 1)
+
+                    # Reset rewards for terminated episodes
+                    current_episode_rewards[idx] = 0
+
+                    # Print some stats about the terminated episode
+                    print(f"Episode finished with reward {episode_rewards[-1]:.2f} after {episode_lengths[-1]} steps")
+
+            # Update progress bar
+            pbar.update(1)
+
+        pbar.close()
+
+        # If any episodes didn't terminate, add their stats too
+        for i in range(self.env.num_envs):
+            if current_episode_rewards[i] > 0:  # Episode didn't terminate
+                episode_rewards.append(current_episode_rewards[i].item())
+                episode_lengths.append(self.max_steps)
+
+        # Aggregate metrics
+        results = {
+            "episode_lengths": episode_lengths,
+            "episode_rewards": episode_rewards,
+            "mean_episode_reward": np.mean(episode_rewards) if episode_rewards else 0,
+            "mean_episode_length": np.mean(episode_lengths) if episode_lengths else 0,
+        }
+
+        return results
