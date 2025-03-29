@@ -275,7 +275,7 @@ def test_rand_bound_env():
             # num = 30
             # fake_noise_scatter_X = np.linspace(env.t, env.t+0.3, num)
             # fake_noise_scatter_Y = env.y + np.random.randn(num)*0.1
-            env.step_env(acc=env.get_action()[0])
+            env.step_env(act=env.get_action()[0])
             # env.step_env(acc=env.get_noised_action()[0])
             # env.vis_scatter(fake_noise_scatter_X, fake_noise_scatter_Y)
             pts = env.get_obspts()
