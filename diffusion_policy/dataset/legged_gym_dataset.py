@@ -50,7 +50,7 @@ class LeggedGymDataset(BaseLowdimDataset):
         super().__init__()
 
         # Load the data
-        keys = [obs_key, action_key, reward_key, 'checkpoint_meta']
+        keys = [obs_key, action_key, reward_key, 'obs_dim', 'action_dim', 'checkpoint_name']
         self.replay_buffer = ReplayBuffer.copy_from_path(zarr_path, keys=keys)
 
         # Try to load metadata if available
@@ -70,7 +70,7 @@ class LeggedGymDataset(BaseLowdimDataset):
             filtered_idxs = []
             for i in range(self.replay_buffer.n_episodes):
                 episode = self.replay_buffer.get_episode(i)
-                checkpoint = episode['checkpoint_meta']['checkpoint_path']
+                checkpoint = episode['checkpoint_name'][0].decode('utf-8')
                 if any(cf in checkpoint for cf in checkpoint_filter):
                     filtered_idxs.append(i)
 
@@ -140,9 +140,24 @@ class LeggedGymDataset(BaseLowdimDataset):
 
     def get_normalizer(self, mode='limits', **kwargs) -> LinearNormalizer:
         """Get a normalizer fit to the training data."""
-        data = self._sample_to_data(self.replay_buffer)
+        # Create a simplified version of the data with only tensors, no dictionaries
+        # First, get the raw data
+        raw_data = self._sample_to_data(self.replay_buffer)
+
+        # Create a clean version with only observation and action data
+        # (exclude the metadata dictionary that's causing problems)
+        clean_data = {
+            'obs': raw_data['obs'],       # T, D_o
+            'action': raw_data['action']  # T, D_a
+        }
+
+        # Add reward if available
+        if 'reward' in raw_data and isinstance(raw_data['reward'], (np.ndarray, torch.Tensor)):
+            clean_data['reward'] = raw_data['reward']
+
+        # Fit the normalizer on the clean data
         normalizer = LinearNormalizer()
-        normalizer.fit(data=data, last_n_dims=1, mode=mode, **kwargs)
+        normalizer.fit(data=clean_data, last_n_dims=1, mode=mode, **kwargs)
         return normalizer
 
     def get_all_actions(self) -> torch.Tensor:
@@ -164,9 +179,24 @@ class LeggedGymDataset(BaseLowdimDataset):
         if self.reward_key in sample:
             data['reward'] = sample[self.reward_key]  # T
 
-        # Add checkpoint metadata if available
-        if 'checkpoint_meta' in sample:
-            data['checkpoint_meta'] = sample['checkpoint_meta']
+        # Create metadata dictionary, but keep it separate from the main data
+        # to avoid problems with the normalizer
+        if 'obs_dim' in sample and 'action_dim' in sample and 'checkpoint_name' in sample:
+            # Get the first entry of each since they should be the same within a sequence
+            if isinstance(sample['checkpoint_name'][0], bytes):
+                checkpoint_path = sample['checkpoint_name'][0].decode('utf-8')
+            else:
+                checkpoint_path = str(sample['checkpoint_name'][0])
+
+            obs_dim = int(sample['obs_dim'][0])
+            action_dim = int(sample['action_dim'][0])
+
+            # Store metadata in a separate field
+            self.current_meta = {
+                'checkpoint_path': checkpoint_path,
+                'obs_dim': obs_dim,
+                'action_dim': action_dim
+            }
 
         return data
 
@@ -178,12 +208,11 @@ class LeggedGymDataset(BaseLowdimDataset):
         # Convert numpy arrays to PyTorch tensors
         torch_data = dict_apply(data, torch.from_numpy)
 
-        # Add metadata information for debugging and tracking
-        if 'checkpoint_meta' in sample:
-            # Store as string to avoid issues with tensor conversion
-            torch_data['checkpoint_path'] = sample['checkpoint_meta']['checkpoint_path']
-            torch_data['obs_dim'] = sample['checkpoint_meta']['obs_dim']
-            torch_data['action_dim'] = sample['checkpoint_meta']['action_dim']
+        # Add metadata as separate fields
+        if hasattr(self, 'current_meta'):
+            torch_data['checkpoint_path'] = self.current_meta['checkpoint_path']
+            torch_data['obs_dim'] = self.current_meta['obs_dim']
+            torch_data['action_dim'] = self.current_meta['action_dim']
 
         return torch_data
 
@@ -197,15 +226,9 @@ class LeggedGymDataset(BaseLowdimDataset):
         dimensions = []
         for i in range(self.replay_buffer.n_episodes):
             episode = self.replay_buffer.get_episode(i)
-            if 'checkpoint_meta' in episode:
-                obs_dim = episode['checkpoint_meta']['obs_dim']
-                action_dim = episode['checkpoint_meta']['action_dim']
-                dimensions.append((obs_dim, action_dim))
-            else:
-                # Fallback to using shape if metadata not available
-                obs_dim = episode[self.obs_key].shape[1]
-                action_dim = episode[self.action_key].shape[1]
-                dimensions.append((obs_dim, action_dim))
+            obs_dim = episode['obs_dim'][0]
+            action_dim = episode['action_dim'][0]
+            dimensions.append((obs_dim, action_dim))
 
         return dimensions
 
@@ -237,8 +260,8 @@ class LeggedGymDataset(BaseLowdimDataset):
 
         for i in range(self.replay_buffer.n_episodes):
             episode = self.replay_buffer.get_episode(i)
-            episode_obs_dim = episode['checkpoint_meta']['obs_dim']
-            episode_action_dim = episode['checkpoint_meta']['action_dim']
+            episode_obs_dim = episode['obs_dim'][0]
+            episode_action_dim = episode['action_dim'][0]
 
             if episode_obs_dim == obs_dim and episode_action_dim == action_dim:
                 dimension_mask[i] = True

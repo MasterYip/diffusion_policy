@@ -9,6 +9,11 @@ import sys
 sys.stdout = open(sys.stdout.fileno(), mode='w', buffering=1)
 sys.stderr = open(sys.stderr.fileno(), mode='w', buffering=1)
 
+try:
+    import isaacgym
+except ImportError:
+    print("Warning: Isaac Gym is not installed.")
+
 import hydra
 from omegaconf import OmegaConf
 import pathlib

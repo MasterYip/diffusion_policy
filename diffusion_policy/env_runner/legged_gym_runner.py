@@ -3,7 +3,7 @@ Author: Raymon Yip 2205929492@qq.com
 Date: 2025-03-29 19:34:29
 Description: file content
 FilePath: /PredictiveDiffusionPlanner_Dev/diffusion_policy/diffusion_policy/env_runner/legged_gym_runner.py
-LastEditTime: 2025-03-29 19:34:29
+LastEditTime: 2025-03-30 10:46:38
 LastEditors: Raymon Yip
 '''
 
@@ -11,8 +11,7 @@ import os
 import numpy as np
 import torch
 import tqdm
-import time
-from typing import Dict, Optional, Tuple, Any
+from typing import Dict, Optional, List, Tuple
 
 from diffusion_policy.policy.base_lowdim_policy import BaseLowdimPolicy
 from diffusion_policy.env_runner.base_lowdim_runner import BaseLowdimRunner
@@ -30,7 +29,7 @@ class LeggedGymRunner(BaseLowdimRunner):
 
     def __init__(self,
                  output_dir: str,
-                 task_name: str = "anymal_c_flat",
+                 task_name: str = "elspider_air_flat",
                  n_train: int = 10,
                  n_train_vis: int = 3,
                  train_start_seed: int = 0,
@@ -79,15 +78,12 @@ class LeggedGymRunner(BaseLowdimRunner):
         self.fps = fps
         self.tqdm_interval_sec = tqdm_interval_sec
         self.device = device
+        self.n_envs = n_envs
+        self.headless = headless
 
-        # Create the environment
-        # Note: When integrating with your project, replace this placeholder with actual env creation
-        # self.env = LeggedGymEnv(
-        #     task_name=task_name,
-        #     num_envs=n_envs,
-        #     headless=headless
-        # )
-        self.env = None  # Placeholder, should be initialized in actual implementation
+        # Environment will be created when run is called to avoid
+        # creating it for validation/testing during training
+        self.env = None
 
         # Ensure the observation history is sufficient for the policy
         self.history_len = n_obs_steps
@@ -102,9 +98,13 @@ class LeggedGymRunner(BaseLowdimRunner):
         Returns:
             Dictionary containing run results
         """
-        # Ensure environment is initialized
+        # Create the environment if it doesn't exist
         if self.env is None:
-            raise ValueError("Environment not initialized. Please initialize before running.")
+            self.env = LeggedGymEnv(
+                task_name=self.task_name,
+                num_envs=self.n_envs,
+                headless=self.headless
+            )
 
         # Use policy device if no device specified
         if self.device is None:
@@ -152,12 +152,12 @@ class LeggedGymRunner(BaseLowdimRunner):
                 actions = action_dict["action_pred"][:, 0, :]  # Take first predicted action
 
             # Step the environment
-            obs, rewards, dones, info = self.env.step(actions)
+            next_obs, rewards, dones, info = self.env.step(actions)
 
             # Update state history
             if step_idx < self.max_steps - 1:  # No need to update on the last step
                 state_history = torch.roll(state_history, shifts=-1, dims=1)
-                state_history[:, -1, :] = obs
+                state_history[:, -1, :] = next_obs
 
             # Accumulate rewards
             current_episode_rewards += rewards
@@ -177,6 +177,9 @@ class LeggedGymRunner(BaseLowdimRunner):
 
                     # Print some stats about the terminated episode
                     print(f"Episode finished with reward {episode_rewards[-1]:.2f} after {episode_lengths[-1]} steps")
+
+            # Update obs for next step
+            obs = next_obs
 
             # Update progress bar
             pbar.update(1)

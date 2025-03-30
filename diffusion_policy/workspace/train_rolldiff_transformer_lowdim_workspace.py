@@ -162,7 +162,8 @@ class TrainRollDiffTransformerLowdimWorkspace(BaseWorkspace):
                                leave=False, mininterval=cfg.training.tqdm_interval_sec) as tepoch:
                     for batch_idx, batch in enumerate(tepoch):
                         # device transfer
-                        batch = dict_apply(batch, lambda x: x.to(device, non_blocking=True))
+                        # Convert numpy arrays to PyTorch tensors (except for metadata)
+                        batch = dict_apply(batch, lambda x: x.to(device, non_blocking=True) if isinstance(x, torch.Tensor) else x)
                         if train_sampling_batch is None:
                             train_sampling_batch = batch
 

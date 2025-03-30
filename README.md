@@ -52,6 +52,7 @@ python train.py \
 training.seed=42 training.device=cuda:0 \
 hydra.run.dir='data/outputs/2025.03.20/10.50.50_train_diffusion_transformer_lowdim_obsavoid_lowdim'
 ```
+
 > Note: Comment out `val_every` to avoid validation during training.
 
 Run the evaluation script:
@@ -62,7 +63,6 @@ python eval.py --checkpoint data/obsavoid_acc.ckpt --output_dir data/obsavoid_ou
 
 Generate Dataset:
 Excute `diffusion_policy/scripts/generate_obsavoid.py`
-
 
 **PushT**
 
@@ -97,4 +97,60 @@ Run the evaluation script:
 
 ```bash
 python eval.py --checkpoint data/0550-test_mean_score=0.969.ckpt --output_dir data/pusht_eval_output --device cuda:0
+```
+
+## Legged Gym Training
+
+**Generate Dataset**
+
+First, generate a dataset from legged gym environments:
+
+```bash
+python diffusion_policy/scripts/legged_gym_dataset_gen.py \
+  --output data/legged_gym/elspider_dataset.zarr \
+  --checkpoints legged_gym_cmp/legged_gym/logs/flat_elspider_air/exported/policies/policy_1.pt \
+  --task_name elspider_air_flat \
+  --n_episodes 1000 \
+  --episode_steps 400 \
+  --num_envs 32 \
+  --headless
+```
+
+**Train Legged Gym Rolling Diffusion**
+
+```bash
+python train.py \
+--config-dir=. \
+--config-name=lowdim_legged_gym_rolldiff_policy_transformer.yaml \
+training.seed=42 training.device=cuda:0 \
+hydra.run.dir='data/outputs/${now:%Y.%m.%d}/${now:%H.%M.%S}_${name}_${task_name}'
+```
+
+Continue training:
+
+```bash
+python train.py \
+--config-dir=. \
+--config-name=lowdim_legged_gym_rolldiff_policy_transformer.yaml \
+training.seed=42 training.device=cuda:0 \
+hydra.run.dir='data/outputs/YOUR_EXISTING_OUTPUT_DIR'
+```
+
+**Evaluate Legged Gym Policy**
+
+```bash
+python eval.py \
+--checkpoint data/best_legged_gym_model.ckpt \
+--output_dir data/legged_gym_output \
+--device cuda:0
+```
+
+You can visualize the policy by running without the `--headless` flag:
+
+```bash
+python eval.py \
+--checkpoint data/best_legged_gym_model.ckpt \
+--output_dir data/legged_gym_output \
+--device cuda:0 \
+--visualize
 ```

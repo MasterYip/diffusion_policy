@@ -1,0 +1,145 @@
+_target_: diffusion_policy.workspace.train_rolldiff_transformer_lowdim_workspace.TrainRollDiffTransformerLowdimWorkspace
+action_dim: 18  # Typical action dimension for legged robots (e.g., 12 for quadrupeds)
+checkpoint:
+  save_last_ckpt: true
+  save_last_snapshot: false
+  topk:
+    format_str: epoch={epoch:04d}-test_mean_score={test_mean_score:.3f}.ckpt
+    k: 5
+    mode: max
+    monitor_key: test_mean_score
+dataloader:
+  batch_size: 256  # Reduced batch size for higher-dimensional data
+  num_workers: 4
+  persistent_workers: true
+  pin_memory: true
+  shuffle: true
+ema:
+  _target_: diffusion_policy.model.diffusion.ema_model.EMAModel
+  inv_gamma: 1.0
+  max_value: 0.9999
+  min_value: 0.0
+  power: 0.75
+  update_after_step: 0
+exp_name: default
+horizon: 50  # Longer horizon for locomotion tasks
+keypoint_visible_rate: 1.0
+logging:
+  group: null
+  id: null
+  mode: offline
+  name: legged_gym_rolldiff_transformer
+  project: diffusion_policy_legged_gym
+  resume: true
+  tags:
+  - train_diffusion_transformer_lowdim
+  - legged_gym
+  - locomotion
+multi_run:
+  run_dir: data/outputs/${now:%Y.%m.%d}/${now:%H.%M.%S}_train_diffusion_transformer_lowdim_legged_gym
+  wandb_name_base: ${now:%Y.%m.%d}-${now:%H.%M.%S}_train_diffusion_transformer_lowdim_legged_gym
+n_action_steps: 48  # Action prediction horizon
+n_latency_steps: 0
+n_obs_steps: 8  # Number of observation steps to condition on
+name: train_diffusion_transformer_lowdim
+obs_as_cond: true
+obs_dim: 64  # Typical observation dimension for legged robots
+optimizer:
+  betas:
+  - 0.9
+  - 0.95
+  learning_rate: 0.0001
+  weight_decay: 0.001
+past_action_visible: false
+policy:
+  _target_: diffusion_policy.policy.rolldiff_transformer_lowdim_policy.RollDiffTransformerLowdimPolicy
+  model:
+    _target_: diffusion_policy.model.diffusion.rolling_diffusion.RollingDiffusion
+    cfg: # rolling diffusion
+      objective: pred_x0
+      beta_schedule: cosine
+      schedule_fn_kwargs: {}
+      clip_noise: 20.0
+      use_snr: False
+      use_cum_snr: False
+      use_fused_snr: False
+      snr_clip: 5.0
+      cum_snr_decay: 0.98
+      timesteps: 100
+      sampling_timesteps: 10
+      ddim_sampling_eta: 0.5
+      stabilization_level: 10
+      architecture:
+        network_size: 128  # Increased network size for more complex dynamics
+    model: 
+      _target_: diffusion_policy.model.diffusion.transformer_for_rolling_diff.TransformerForRollingDiffusion
+      causal_attn: true
+      cond_dim: 48  # Match obs dimension
+      horizon: 50
+      input_dim: 18  # Match action dimension
+      n_cond_layers: 0
+      n_emb: 512  # Increased embedding dimension
+      n_head: 8  # More attention heads
+      n_layer: 12  # More transformer layers
+      n_obs_steps: 8
+      obs_as_cond: true
+      output_dim: 18  # Match action dimension
+      p_drop_attn: 0.2
+      p_drop_emb: 0.0
+      time_as_cond: true
+      max_noise_level: 100
+    action_dim: 18
+  action_dim: 18
+  horizon: 50
+  n_action_steps: 48
+  n_obs_steps: 8
+  max_noise_level: 100
+  obs_as_cond: true
+  obs_dim: 64
+  pred_action_steps_only: false
+pred_action_steps_only: true
+task:
+  action_dim: 18
+  dataset:
+    _target_: diffusion_policy.dataset.legged_gym_dataset.LeggedGymDataset
+    horizon: 50
+    max_train_episodes: 1000  # Adjust based on your dataset size
+    pad_after: 8
+    pad_before: 2
+    seed: 42
+    val_ratio: 0.1
+    zarr_path: data/legged_gym/elspider_dataset.zarr  # Path to your generated dataset
+  env_runner:
+    _target_: diffusion_policy.env_runner.legged_gym_runner.LeggedGymRunner
+    max_steps: 1000
+    n_action_steps: 48
+    n_obs_steps: 8
+    task_name: elspider_air_flat  # Change to match your legged gym environment
+    n_envs: 16  # Number of parallel environments for evaluation
+  keypoint_dim: 0
+  name: legged_gym_lowdim
+  obs_dim: 64
+task_name: legged_gym_lowdim
+training:
+  checkpoint_every: 10
+  debug: false
+  device: cuda:0
+  gradient_accumulate_every: 1
+  lr_scheduler: cosine
+  lr_warmup_steps: 1000
+  max_train_steps: null
+  max_val_steps: null
+  num_epochs: 5000
+  resume: true
+  rollout_every: 50
+  sample_every: 10
+  seed: 42
+  tqdm_interval_sec: 1.0
+  use_ema: true
+  val_every: 20
+val_dataloader:
+  batch_size: 256
+  num_workers: 4
+  persistent_workers: true
+  pin_memory: true
+  shuffle: false 
