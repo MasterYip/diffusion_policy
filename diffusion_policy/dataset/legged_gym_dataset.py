@@ -209,10 +209,11 @@ class LeggedGymDataset(BaseLowdimDataset):
         torch_data = dict_apply(data, torch.from_numpy)
 
         # Add metadata as separate fields
-        if hasattr(self, 'current_meta'):
-            torch_data['checkpoint_path'] = self.current_meta['checkpoint_path']
-            torch_data['obs_dim'] = self.current_meta['obs_dim']
-            torch_data['action_dim'] = self.current_meta['action_dim']
+        # FIXME: This is causing issues with the normalizer
+        # if hasattr(self, 'current_meta'):
+        #     torch_data['checkpoint_path'] = self.current_meta['checkpoint_path']
+        #     torch_data['obs_dim'] = self.current_meta['obs_dim']
+        #     torch_data['action_dim'] = self.current_meta['action_dim']
 
         return torch_data
 

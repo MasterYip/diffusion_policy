@@ -9,7 +9,7 @@ checkpoint:
     mode: max
     monitor_key: test_mean_score
 dataloader:
-  batch_size: 256  # Reduced batch size for higher-dimensional data
+  batch_size: 136  # Reduced batch size for higher-dimensional data
   num_workers: 4
   persistent_workers: true
   pin_memory: true
@@ -74,7 +74,7 @@ policy:
     model: 
       _target_: diffusion_policy.model.diffusion.transformer_for_rolling_diff.TransformerForRollingDiffusion
       causal_attn: true
-      cond_dim: 48  # Match obs dimension
+      cond_dim: 66  # Match obs dimension
       horizon: 50
       input_dim: 18  # Match action dimension
       n_cond_layers: 0
@@ -138,7 +138,7 @@ training:
   use_ema: true
   val_every: 20
 val_dataloader:
-  batch_size: 256
+  batch_size: 136
   num_workers: 4
   persistent_workers: true
   pin_memory: true

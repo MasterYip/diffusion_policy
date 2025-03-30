@@ -136,7 +136,7 @@ def main(output, checkpoints, task_name, n_episodes, episode_steps,
             for i in range(env.num_envs):
                 active_episodes[i]['obs'].append(obs[i].cpu().numpy())
                 active_episodes[i]['action'].append(actions[i].cpu().numpy())
-                active_episodes[i]['reward'].append(rewards[i].cpu().numpy())
+                active_episodes[i]['reward'].append([rewards[i].cpu().numpy()])  # Make reward a list to avoid zarr issue
                 steps_in_episode[i] += 1
 
                 # Check if episode is done (either by environment signal or max steps)
