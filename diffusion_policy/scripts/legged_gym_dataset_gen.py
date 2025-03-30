@@ -213,8 +213,8 @@ def load_policy_from_checkpoint(checkpoint_path, task_name):
         experiment_name = os.path.basename(os.path.dirname(os.path.dirname(checkpoint_path)))
 
         # Create dummy args for loading
-        from legged_gym.utils import get_args
-        args = get_args()
+        from legged_gym.utils import get_known_args
+        args = get_known_args()
         args.task = task_name  # This will be overridden by the checkpoint
         args.headless = True
         args.num_envs = 1  # Just need one env for loading the policy

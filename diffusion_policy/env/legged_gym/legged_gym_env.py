@@ -3,17 +3,17 @@ Author: Raymon Yip 2205929492@qq.com
 Date: 2025-03-29 19:20:16
 Description: file content
 FilePath: /PredictiveDiffusionPlanner_Dev/diffusion_policy/diffusion_policy/env/legged_gym/legged_gym_env.py
-LastEditTime: 2025-03-30 11:52:35
+LastEditTime: 2025-03-30 17:03:51
 LastEditors: Raymon Yip
 '''
 # autopep8: off
 from legged_gym import LEGGED_GYM_ROOT_DIR
 import os
-
+import sys
 import isaacgym
 from isaacgym import gymapi
 from legged_gym.envs import *
-from legged_gym.utils import get_args, export_policy_as_jit, task_registry, Logger
+from legged_gym.utils import get_known_args, export_policy_as_jit, task_registry, Logger
 
 from typing import Dict, Tuple, Optional, Any, List, Union
 import numpy as np
@@ -51,7 +51,7 @@ class LeggedGymEnv:
         """
         # Create custom args if not provided
         if args is None:
-            args = get_args()  # FIXME: This will parse cmd line args again, which may include args from top level
+            args = get_known_args()
             # Override args with provided params
             args.task = task_name
             args.headless = headless
