@@ -106,11 +106,12 @@ python eval.py --checkpoint data/0550-test_mean_score=0.969.ckpt --output_dir da
 First, generate a dataset from legged gym environments:
 
 ```bash
-python diffusion_policy/scripts/legged_gym_dataset_gen.py \
-  --output data/legged_gym/elspider_dataset.zarr \
-  --checkpoints legged_gym_cmp/legged_gym/logs/flat_elspider_air/exported/policies/policy_1.pt \
-  --task_name elspider_air_flat \
-  --n_episodes 1000 \
+cd <REPO_ROOT_DIR>
+python ./diffusion_policy/diffusion_policy/scripts/legged_gym_dataset_gen.py \
+  --output "./diffusion_policy/data/legged_gym/elspider_dataset.zarr" \
+  --checkpoints "legged_gym_cmp/legged_gym/logs/flat_elspider_air/exported/policies/policy_1.pt" \
+  --task_name "elspider_air_flat" \
+  --n_episodes 10 \
   --episode_steps 400 \
   --num_envs 32 \
   --headless

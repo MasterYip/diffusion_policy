@@ -3,7 +3,7 @@ Author: Raymon Yip 2205929492@qq.com
 Date: 2025-03-29 19:20:16
 Description: file content
 FilePath: /PredictiveDiffusionPlanner_Dev/diffusion_policy/diffusion_policy/env/legged_gym/legged_gym_env.py
-LastEditTime: 2025-03-30 09:44:01
+LastEditTime: 2025-03-30 11:52:35
 LastEditors: Raymon Yip
 '''
 # autopep8: off
@@ -51,7 +51,7 @@ class LeggedGymEnv:
         """
         # Create custom args if not provided
         if args is None:
-            args = get_args()
+            args = get_args()  # FIXME: This will parse cmd line args again, which may include args from top level
             # Override args with provided params
             args.task = task_name
             args.headless = headless
