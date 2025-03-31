@@ -134,7 +134,7 @@ python train.py \
 --config-dir=. \
 --config-name=lowdim_legged_gym_rolldiff_policy_transformer.yaml \
 training.seed=42 training.device=cuda:0 \
-hydra.run.dir='diffusion_policy/data/outputs/2025.03.31/12.07.05_train_diffusion_transformer_lowdim_legged_gym_lowdim'
+hydra.run.dir='diffusion_policy/data/outputs/2025.03.31/12.31.00_train_diffusion_transformer_lowdim_legged_gym_lowdim'
 ```
 
 **Evaluate Legged Gym Policy**
