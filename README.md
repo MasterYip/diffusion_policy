@@ -143,7 +143,8 @@ hydra.run.dir='diffusion_policy/data/outputs/2025.03.31/12.07.05_train_diffusion
 python eval.py \
 --checkpoint data/rolldiff_elspider_0331.ckpt \
 --output_dir data/legged_gym_output \
---device cuda:0
+--device cuda:0 \
+--max_steps 1000
 ```
 
 You can visualize the policy by running without the `--headless` flag:
