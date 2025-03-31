@@ -9,7 +9,7 @@ checkpoint:
     mode: max
     monitor_key: test_mean_score
 dataloader:
-  batch_size: 136  # Reduced batch size for higher-dimensional data
+  batch_size: 128  # Reduced batch size for higher-dimensional data
   num_workers: 4
   persistent_workers: true
   pin_memory: true
@@ -43,7 +43,7 @@ n_latency_steps: 0
 n_obs_steps: 8  # Number of observation steps to condition on
 name: train_diffusion_transformer_lowdim
 obs_as_cond: true
-obs_dim: 64  # Typical observation dimension for legged robots
+obs_dim: 66  # Typical observation dimension for legged robots
 optimizer:
   betas:
   - 0.9
@@ -95,7 +95,7 @@ policy:
   n_obs_steps: 8
   max_noise_level: 100
   obs_as_cond: true
-  obs_dim: 64
+  obs_dim: 66
   pred_action_steps_only: false
 pred_action_steps_only: true
 task:
@@ -111,14 +111,15 @@ task:
     zarr_path: data/legged_gym/elspider_dataset.zarr  # Path to your generated dataset
   env_runner:
     _target_: diffusion_policy.env_runner.legged_gym_runner.LeggedGymRunner
-    max_steps: 1000
+    max_steps: 200
     n_action_steps: 48
     n_obs_steps: 8
     task_name: elspider_air_flat  # Change to match your legged gym environment
     n_envs: 16  # Number of parallel environments for evaluation
+    headless: false
   keypoint_dim: 0
   name: legged_gym_lowdim
-  obs_dim: 64
+  obs_dim: 66
 task_name: legged_gym_lowdim
 training:
   checkpoint_every: 10
@@ -138,7 +139,7 @@ training:
   use_ema: true
   val_every: 20
 val_dataloader:
-  batch_size: 136
+  batch_size: 128
   num_workers: 4
   persistent_workers: true
   pin_memory: true
