@@ -9,7 +9,7 @@ checkpoint:
     mode: max
     monitor_key: test_mean_score
 dataloader:
-  batch_size: 128  # Reduced batch size for higher-dimensional data
+  batch_size: 64  # Reduced batch size for higher-dimensional data
   num_workers: 4
   persistent_workers: true
   pin_memory: true
@@ -139,7 +139,7 @@ training:
   use_ema: true
   val_every: 20
 val_dataloader:
-  batch_size: 128
+  batch_size: 64
   num_workers: 4
   persistent_workers: true
   pin_memory: true

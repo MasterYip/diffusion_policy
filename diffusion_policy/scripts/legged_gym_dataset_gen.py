@@ -275,7 +275,7 @@ def load_exported_policy(checkpoint_path):
         # Create a wrapper to make the interface consistent
         class JitPolicyWrapper:
             # FIXME: action_dim and obs_dim should be inferred from the policy
-            def __init__(self, jit_policy, action_dim=18, obs_dim=64):
+            def __init__(self, jit_policy, action_dim=18, obs_dim=66):
                 self.policy = jit_policy
                 self.action_dim = action_dim
                 self.obs_dim = obs_dim
