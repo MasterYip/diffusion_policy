@@ -111,7 +111,7 @@ task:
     zarr_path: data/legged_gym/elspider_dataset.zarr  # Path to your generated dataset
   env_runner:
     _target_: diffusion_policy.env_runner.legged_gym_runner.LeggedGymRunner
-    max_steps: 200
+    max_steps: 300
     n_action_steps: 48
     n_obs_steps: 8
     task_name: elspider_air_flat  # Change to match your legged gym environment
@@ -132,7 +132,7 @@ training:
   max_val_steps: null
   num_epochs: 5000
   resume: true
-  rollout_every: 50
+  rollout_every: 2
   sample_every: 10
   seed: 42
   tqdm_interval_sec: 1.0

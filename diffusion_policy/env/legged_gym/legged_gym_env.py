@@ -13,7 +13,7 @@ import sys
 import isaacgym
 from isaacgym import gymapi
 from legged_gym.envs import *
-from legged_gym.utils import get_known_args, export_policy_as_jit, task_registry, Logger
+from legged_gym.utils import get_default_args, export_policy_as_jit, task_registry, Logger
 
 from typing import Dict, Tuple, Optional, Any, List, Union
 import numpy as np
@@ -51,7 +51,7 @@ class LeggedGymEnv:
         """
         # Create custom args if not provided
         if args is None:
-            args = get_known_args()
+            args = get_default_args()
             # Override args with provided params
             args.task = task_name
             args.headless = headless

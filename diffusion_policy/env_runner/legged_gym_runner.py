@@ -3,19 +3,20 @@ Author: Raymon Yip 2205929492@qq.com
 Date: 2025-03-29 19:34:29
 Description: file content
 FilePath: /PredictiveDiffusionPlanner_Dev/diffusion_policy/diffusion_policy/env_runner/legged_gym_runner.py
-LastEditTime: 2025-03-30 10:46:38
+LastEditTime: 2025-03-31 13:10:45
 LastEditors: Raymon Yip
 '''
 
 import os
 import numpy as np
+import isaacgym
 import torch
 import tqdm
 from typing import Dict, Optional, List, Tuple
 
+from diffusion_policy.env.legged_gym.legged_gym_env import LeggedGymEnv
 from diffusion_policy.policy.base_lowdim_policy import BaseLowdimPolicy
 from diffusion_policy.env_runner.base_lowdim_runner import BaseLowdimRunner
-from diffusion_policy.env.legged_gym.legged_gym_env import LeggedGymEnv
 
 # Note: The actual import should point to where LeggedGymEnv is located in your project
 # This is a placeholder and should be updated when integrating with your project
