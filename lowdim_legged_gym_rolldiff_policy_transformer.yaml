@@ -27,7 +27,7 @@ keypoint_visible_rate: 1.0
 logging:
   group: null
   id: null
-  mode: online
+  mode: offline
   name: legged_gym_rolldiff_transformer
   project: diffusion_policy_legged_gym
   resume: true

@@ -99,7 +99,7 @@ Run the evaluation script:
 python eval.py --checkpoint data/0550-test_mean_score=0.969.ckpt --output_dir data/pusht_eval_output --device cuda:0
 ```
 
-## Legged Gym Training
+### Legged Gym Training
 
 **Generate Dataset**
 
@@ -134,7 +134,7 @@ python train.py \
 --config-dir=. \
 --config-name=lowdim_legged_gym_rolldiff_policy_transformer.yaml \
 training.seed=42 training.device=cuda:0 \
-hydra.run.dir='diffusion_policy/data/outputs/2025.03.31/12.31.00_train_diffusion_transformer_lowdim_legged_gym_lowdim'
+hydra.run.dir='data/outputs/2025.03.31/15.08.01_train_diffusion_transformer_lowdim_legged_gym_lowdim'
 ```
 
 **Evaluate Legged Gym Policy**
