@@ -111,10 +111,50 @@ python ./diffusion_policy/diffusion_policy/scripts/legged_gym_dataset_gen.py \
   --output "./diffusion_policy/data/legged_gym/elspider_dataset.zarr" \
   --checkpoints "legged_gym_cmp/legged_gym/logs/flat_elspider_air/exported/policies/policy_1.pt" \
   --task_name "elspider_air_flat" \
-  --n_episodes 48 \
-  --episode_steps 400 \
-  --num_envs 48 \
+  --n_episodes 256 \
+  --episode_steps 1000 \
+  --num_envs 256 \
   --headless
+```
+
+**Train Legged Gym Diffusion Policy Transformer**
+
+```bash
+python train.py \
+--config-dir=. \
+--config-name=lowdim_legged_gym_diffusion_policy_transformer.yaml \
+training.seed=42 training.device=cuda:0 \
+hydra.run.dir='data/outputs/${now:%Y.%m.%d}/${now:%H.%M.%S}_${name}_${task_name}'
+```
+
+Continue training:
+
+```bash
+python train.py \
+--config-dir=. \
+--config-name=lowdim_legged_gym_diffusion_policy_transformer.yaml \
+training.seed=42 training.device=cuda:0 \
+hydra.run.dir='data/outputs/2025.04.17/17.48.17_train_diffusion_transformer_lowdim_legged_gym_lowdim'
+```
+
+**Evaluate Legged Gym Diffusion Policy**
+
+```bash
+python eval.py \
+--checkpoint data/outputs/2025.04.17/17.48.17_train_diffusion_transformer_lowdim_legged_gym_lowdim/checkpoints/latest.ckpt \
+--output_dir data/legged_gym_output \
+--device cuda:0 \
+--max_steps 5000
+```
+
+You can visualize the policy by running without the `--headless` flag:
+
+```bash
+python eval.py \
+--checkpoint data/best_legged_gym_diffusion_model.ckpt \
+--output_dir data/legged_gym_output \
+--device cuda:0 \
+--visualize
 ```
 
 **Train Legged Gym Rolling Diffusion**
@@ -141,10 +181,10 @@ hydra.run.dir='data/outputs/2025.04.01/20.19.36_train_diffusion_transformer_lowd
 
 ```bash
 python eval.py \
---checkpoint data/outputs/2025.04.16/18.15.03_train_diffusion_transformer_lowdim_legged_gym_lowdim/checkpoints/latest.ckpt \
+--checkpoint data/outputs/2025.04.17/17.48.17_train_diffusion_transformer_lowdim_legged_gym_lowdim/checkpoints/latest.ckpt \
 --output_dir data/legged_gym_output \
 --device cuda:0 \
---max_steps 1000
+--max_steps 5000
 ```
 
 You can visualize the policy by running without the `--headless` flag:

@@ -1,4 +1,4 @@
-_target_: diffusion_policy.workspace.train_rolldiff_transformer_lowdim_workspace.TrainRollDiffTransformerLowdimWorkspace
+_target_: diffusion_policy.workspace.train_diffusion_transformer_lowdim_workspace.TrainDiffusionTransformerLowdimWorkspace
 action_dim: 18  # Typical action dimension for legged robots (e.g., 12 for quadrupeds)
 checkpoint:
   save_last_ckpt: true
@@ -9,7 +9,7 @@ checkpoint:
     mode: max
     monitor_key: test_mean_score
 dataloader:
-  batch_size: 512  # Reduced batch size for higher-dimensional data
+  batch_size: 512  # Larger batch size for legged gym data
   num_workers: 4
   persistent_workers: true
   pin_memory: true
@@ -28,7 +28,7 @@ logging:
   group: null
   id: null
   mode: offline
-  name: legged_gym_rolldiff_transformer
+  name: legged_gym_diffusion_transformer
   project: diffusion_policy_legged_gym
   resume: true
   tags:
@@ -52,48 +52,37 @@ optimizer:
   weight_decay: 0.001
 past_action_visible: false
 policy:
-  _target_: diffusion_policy.policy.rolldiff_transformer_lowdim_policy.RollDiffTransformerLowdimPolicy
-  model:
-    _target_: diffusion_policy.model.diffusion.rolling_diffusion.RollingDiffusion
-    cfg: # rolling diffusion
-      objective: pred_x0
-      beta_schedule: cosine
-      schedule_fn_kwargs: {}
-      clip_noise: 20.0
-      use_snr: False
-      use_cum_snr: False
-      use_fused_snr: False
-      snr_clip: 5.0
-      cum_snr_decay: 0.98
-      timesteps: 100
-      sampling_timesteps: 10
-      ddim_sampling_eta: 0.5
-      stabilization_level: 10
-      architecture:
-        network_size: 128  # Increased network size for more complex dynamics
-    model: 
-      _target_: diffusion_policy.model.diffusion.transformer_for_rolling_diff.TransformerForRollingDiffusion
-      causal_attn: true
-      cond_dim: 66  # Match obs dimension
-      horizon: 50
-      input_dim: 18  # Match action dimension
-      n_cond_layers: 0
-      n_emb: 512  # Increased embedding dimension
-      n_head: 8  # More attention heads
-      n_layer: 12  # More transformer layers
-      n_obs_steps: 8
-      obs_as_cond: true
-      output_dim: 18  # Match action dimension
-      p_drop_attn: 0.2
-      p_drop_emb: 0.0
-      time_as_cond: true
-      max_noise_level: 100
-    action_dim: 18
+  _target_: diffusion_policy.policy.diffusion_transformer_lowdim_policy.DiffusionTransformerLowdimPolicy
   action_dim: 18
   horizon: 50
+  model:
+    _target_: diffusion_policy.model.diffusion.transformer_for_diffusion.TransformerForDiffusion
+    causal_attn: true
+    cond_dim: 66  # Match obs dimension
+    horizon: 50
+    input_dim: 18  # Match action dimension
+    n_cond_layers: 0
+    n_emb: 512  # Increased embedding dimension
+    n_head: 8  # More attention heads
+    n_layer: 12  # More transformer layers
+    n_obs_steps: 8
+    obs_as_cond: true
+    output_dim: 18  # Match action dimension
+    p_drop_attn: 0.2
+    p_drop_emb: 0.0
+    time_as_cond: true
   n_action_steps: 48
   n_obs_steps: 8
-  max_noise_level: 100
+  noise_scheduler:
+    _target_: diffusers.schedulers.scheduling_ddpm.DDPMScheduler
+    beta_end: 0.02
+    beta_schedule: squaredcos_cap_v2
+    beta_start: 0.0001
+    clip_sample: true
+    num_train_timesteps: 100
+    prediction_type: epsilon
+    variance_type: fixed_small
+  num_inference_steps: 100
   obs_as_cond: true
   obs_dim: 66
   pred_action_steps_only: false
@@ -143,4 +132,4 @@ val_dataloader:
   num_workers: 4
   persistent_workers: true
   pin_memory: true
-  shuffle: false 
+  shuffle: false
