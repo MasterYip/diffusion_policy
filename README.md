@@ -134,14 +134,14 @@ python train.py \
 --config-dir=. \
 --config-name=lowdim_legged_gym_rolldiff_policy_transformer.yaml \
 training.seed=42 training.device=cuda:0 \
-hydra.run.dir='data/outputs/2025.03.31/15.08.01_train_diffusion_transformer_lowdim_legged_gym_lowdim'
+hydra.run.dir='data/outputs/2025.04.01/20.19.36_train_diffusion_transformer_lowdim_legged_gym_lowdim'
 ```
 
 **Evaluate Legged Gym Policy**
 
 ```bash
 python eval.py \
---checkpoint data/rolldiff_elspider_0331.ckpt \
+--checkpoint data/outputs/2025.04.16/18.15.03_train_diffusion_transformer_lowdim_legged_gym_lowdim/checkpoints/latest.ckpt \
 --output_dir data/legged_gym_output \
 --device cuda:0 \
 --max_steps 1000

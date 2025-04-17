@@ -148,7 +148,7 @@ class RollDiffTransformerLowdimPolicy(BaseLowdimPolicy):
             guidance_fn=None,
         )[:, 1:]
 
-    # interface (copied from diffusion policy)
+    # Interface (copied from diffusion policy)
 
     def shift_trajectory(self, plan_traj, append_noise=False):
         """ Shift 1 step back """
@@ -165,12 +165,10 @@ class RollDiffTransformerLowdimPolicy(BaseLowdimPolicy):
             obs: (B, To, Do)  # To=observation horizon
         return:
             action: (B, Ta, Da)  # Ta=action horizon
-        """
-        """
         obs_dict: must include "obs" key
         result: must include "action" key
         """
-
+        ##=== Preprocess ===##
         assert 'obs' in obs_dict
         assert 'past_action' not in obs_dict  # not implemented yet
         nobs = self.normalizer['obs'].normalize(obs_dict['obs'])
@@ -180,10 +178,8 @@ class RollDiffTransformerLowdimPolicy(BaseLowdimPolicy):
         T = self.horizon
         Da = self.action_dim
 
-        # # build input
-        # device = self.device
-        # dtype = self.dtype
 
+        ##=== Handle Obs ===##
         # handle different ways of passing observation
         cond = None  # Conditions
         assert self.obs_as_cond  # only support obs_as_cond
@@ -204,13 +200,16 @@ class RollDiffTransformerLowdimPolicy(BaseLowdimPolicy):
                                    from_noise_levels=from_noise_levels,
                                    to_noise_levels=to_noise_levels, condition=cond)
 
+        ## === Optimize === ##              
         self.ddim_step(self.trajectory,
                        from_noise_levels=self.from_noise_levels,
                        to_noise_levels=self.to_noise_levels,
                        condition=cond)
 
+        # Shift trajectory
         self.trajectory = self.shift_trajectory(self.trajectory)
 
+        ##=== Postprocess ===##
         # Unnormalize action
         nsample = self.trajectory
         naction_pred = nsample[..., :Da]
