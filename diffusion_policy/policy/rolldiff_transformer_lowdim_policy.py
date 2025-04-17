@@ -11,18 +11,10 @@ from diffusion_policy.model.common.normalizer import LinearNormalizer
 from diffusion_policy.model.diffusion.rolling_diffusion import RollingDiffusion
 from diffusion_policy.policy.base_lowdim_policy import BaseLowdimPolicy
 from diffusion_policy.model.diffusion.mask_generator import LowdimMaskGenerator
+from diffusion_policy.model.diffusion.rolling_diffusion_utils import exp_noise_mask
 import numpy as np
 
 ModelPrediction = namedtuple("ModelPrediction", ["pred_noise", "pred_x_start", "model_out"])
-
-
-def exp_noise_mask(horizon, max_noise_level, sigma=2.0, pad_zero=1,
-                   dtype=torch.int64):
-    zeros = torch.zeros(pad_zero)
-    len_exp = horizon - pad_zero
-    exps = torch.tensor([exp((k-len_exp)*sigma / len_exp) for k in range(len_exp)])
-    exps = ((exps - exp(-sigma)) / (1.0 - exp(-sigma)) * max_noise_level)
-    return torch.cat([zeros, exps]).to(dtype)
 
 
 class RollDiffTransformerLowdimPolicy(BaseLowdimPolicy):
@@ -168,7 +160,7 @@ class RollDiffTransformerLowdimPolicy(BaseLowdimPolicy):
         obs_dict: must include "obs" key
         result: must include "action" key
         """
-        ##=== Preprocess ===##
+        # === Preprocess === #
         assert 'obs' in obs_dict
         assert 'past_action' not in obs_dict  # not implemented yet
         nobs = self.normalizer['obs'].normalize(obs_dict['obs'])
@@ -178,8 +170,7 @@ class RollDiffTransformerLowdimPolicy(BaseLowdimPolicy):
         T = self.horizon
         Da = self.action_dim
 
-
-        ##=== Handle Obs ===##
+        # === Handle Obs === #
         # handle different ways of passing observation
         cond = None  # Conditions
         assert self.obs_as_cond  # only support obs_as_cond
@@ -200,7 +191,7 @@ class RollDiffTransformerLowdimPolicy(BaseLowdimPolicy):
                                    from_noise_levels=from_noise_levels,
                                    to_noise_levels=to_noise_levels, condition=cond)
 
-        ## === Optimize === ##              
+        # === Optimize === #
         self.ddim_step(self.trajectory,
                        from_noise_levels=self.from_noise_levels,
                        to_noise_levels=self.to_noise_levels,
@@ -209,7 +200,7 @@ class RollDiffTransformerLowdimPolicy(BaseLowdimPolicy):
         # Shift trajectory
         self.trajectory = self.shift_trajectory(self.trajectory)
 
-        ##=== Postprocess ===##
+        # === Postprocess === #
         # Unnormalize action
         nsample = self.trajectory
         naction_pred = nsample[..., :Da]

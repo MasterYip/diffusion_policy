@@ -1,7 +1,12 @@
+from ast import Tuple
 import math
 import torch
 from torch import nn
 from einops import rearrange, parse_shape
+
+################################################
+# Diffusion Beta Schedules
+################################################
 
 
 def exists(val):
@@ -26,7 +31,7 @@ def extract(a, t, x_shape):
     Returns:
         torch.Tensor: Extracted tensor with reshaped dimensions.
     """
-    # FIXME: in diffusion forcing is (f, b) f = frame, b = batch; 
+    # FIXME: in diffusion forcing is (f, b) f = frame, b = batch;
     # in diffusion policy is (B, T, D)
     # There may be a bug here
     if len(t.shape) == 1:
@@ -105,3 +110,131 @@ def get_einops_wrapped_module(module, from_shape: str, to_shape: str):
             return self.wrapper(x, *args, **kwargs)
 
     return WrappedModule
+
+################################################
+# Noise Level Schedulers
+################################################
+
+
+def exp_noise_mask(horizon, max_noise_level, sigma=2.0, pad_zero=1,
+                   dtype=torch.int64):
+    """
+    noise_level
+        ^
+    max |                                          *
+        |                                       *
+        |                                    *
+        |                                 *
+        |                             *
+        |                         *
+        |                     *
+        |                 *
+        |           *
+        |      *
+    0   |*****_________________________________________→ timestep
+        pad_zero                          horizon
+
+    Args:
+        horizon (int): Total length of the output tensor
+        max_noise_level (int/float): Maximum noise level to reach
+        sigma (float, optional): Controls steepness of exponential curve. Defaults to 2.0.
+        pad_zero (int, optional): Number of initial timesteps with zero noise. Defaults to 1.
+        dtype (torch.dtype, optional): Data type of output tensor. Defaults to torch.int64.
+
+    Returns:
+        torch.Tensor: A tensor of shape (horizon,) with the noise mask values
+    """
+
+    zeros = torch.zeros(pad_zero)
+    len_exp = horizon - pad_zero
+    exps = torch.tensor([math.exp((k-len_exp)*sigma / len_exp) for k in range(len_exp)])
+    exps = ((exps - math.exp(-sigma)) / (1.0 - math.exp(-sigma)) * max_noise_level)
+    return torch.cat([zeros, exps]).to(dtype)
+
+
+class BaseNoiseScheduler:
+    def __init__(self,
+                 batch_size: int,
+                 dtype: torch.dtype,
+                 device: str = 'cpu',
+                 ):
+        self.batch_size = batch_size
+        self.dtype = dtype
+        self.device = device
+        self.from_noise_levels = None
+        self.to_noise_levels = None
+        pass
+
+    def update(self) -> bool:
+        """
+        Update noise levels
+
+        :return: True as stop signal
+        """
+        return True
+
+    def get_noise_schedule(self) -> Tuple:
+        raise NotImplementedError("Must be implemented to return Tuple[from_noise_levels, to_noise_levels]")
+
+
+class ConstLevelNoiseScheduler(BaseNoiseScheduler):
+    def __init__(self,
+                 max_level: int,
+                 horizon: int,
+                 level_subdivision: int = 10,
+                 batch_size: int = 1,
+                 dtype: torch.dtype = torch.int64,
+                 device: str = 'cpu',
+                 ):
+        self.max_level = max_level
+        self.horizon = horizon
+        self.level_subdivision = level_subdivision
+        self.batch_size = batch_size
+        self.dtype = dtype
+        self.device = device
+        super().__init__(batch_size, dtype, device)
+        self.progress_cnt = level_subdivision
+        self.subdivide_levels = torch.linspace(0, max_level, level_subdivision).to(self.device, dtype=dtype)
+
+    def update(self) -> bool:
+        self.progress_cnt -= 1
+        if self.progress_cnt < 0:
+            return True
+        self.from_noise_levels = torch.ones(self.batch_size, self.horizon).to(self.device, dtype=self.dtype)\
+            * self.subdivide_levels[self.progress_cnt]
+        self.to_noise_levels = torch.ones(self.batch_size, self.horizon).to(self.device, dtype=self.dtype)\
+            * self.subdivide_levels[self.progress_cnt - 1]
+        return False
+
+    # === Interface === #
+
+    def get_noise_schedule(self):
+        return self.from_noise_levels, self.to_noise_levels
+
+
+class ShiftBackNoiseScheduler(BaseNoiseScheduler):
+    def __init__(self,
+                 max_level: int,
+                 horizon: int,
+                 sigma: float = 2.0,
+                 pad_zero: int = 1,
+                 batch_size: int = 1,
+                 dtype: torch.dtype = torch.int64,
+                 device: str = 'cpu',
+                 ):
+        self.max_level = max_level
+        self.horizon = horizon
+        self.sigma = sigma
+        self.pad_zero = pad_zero
+        self.dtype = dtype
+        super().__init__(batch_size, dtype, device)
+        self.to_noise_levels = exp_noise_mask(self.horizon, self.max_level, self.sigma,
+                                              self.pad_zero, self.dtype).repeat(self.batch_size, 1).to(self.device)
+        self.from_noise_levels = self.shift_noise_mask(self.to_noise_levels)
+
+    def shift_noise_mask(self, noise_mask):
+        return torch.cat([noise_mask[:, 1:], noise_mask[:, -1].unsqueeze(1)], dim=1).to(self.device)
+
+    # === Interface === #
+    def get_noise_schedule(self):
+        return self.from_noise_levels, self.to_noise_levels
