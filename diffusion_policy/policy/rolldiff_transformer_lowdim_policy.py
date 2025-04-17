@@ -1,3 +1,4 @@
+import numpy as np
 from math import exp
 from typing import Optional, Callable, Dict, Tuple
 from collections import namedtuple
@@ -11,8 +12,8 @@ from diffusion_policy.model.common.normalizer import LinearNormalizer
 from diffusion_policy.model.diffusion.rolling_diffusion import RollingDiffusion
 from diffusion_policy.policy.base_lowdim_policy import BaseLowdimPolicy
 from diffusion_policy.model.diffusion.mask_generator import LowdimMaskGenerator
-from diffusion_policy.model.diffusion.rolling_diffusion_utils import exp_noise_mask
-import numpy as np
+from diffusion_policy.model.diffusion.rolling_diffusion_utils import exp_noise_mask, \
+    ConstLevelNoiseScheduler, ShiftBackNoiseScheduler
 
 ModelPrediction = namedtuple("ModelPrediction", ["pred_noise", "pred_x_start", "model_out"])
 
@@ -103,6 +104,7 @@ class RollDiffTransformerLowdimPolicy(BaseLowdimPolicy):
         # start = self.make_bundle()
         plan_horizon = np.ceil(horizon / self.frame_stack).astype(int)
 
+        
         chunk = torch.randn((batch_size, plan_horizon, action_dim), device=self.device)
         # chunk = torch.clamp(chunk, -self.cfg.diffusion.clip_noise, self.cfg.diffusion.clip_noise)
 
@@ -111,6 +113,23 @@ class RollDiffTransformerLowdimPolicy(BaseLowdimPolicy):
         # plan_traj = torch.cat([init_token, chunk, pad], 0)
         plan_traj = chunk
         # (B,Ta,Da)
+
+        # Noise level scheduler
+        # self.noise_level_scheduler = ConstLevelNoiseScheduler(
+        #     max_level=self.max_noise_level,
+        #     horizon=horizon,
+        #     level_subdivision=20,
+        #     dtype=torch.int64,
+        #     device=self.device,
+        # )
+        self.noise_level_scheduler = ShiftBackNoiseScheduler(
+            max_level=self.max_noise_level,
+            horizon=horizon,
+            sigma=2.0,
+            pad_zero=2,
+            dtype=torch.int64,
+            device=self.device,
+        )
 
         # Initialize noise levels
         # self.from_noise_levels = self.get_last_noise_mask(
@@ -192,10 +211,13 @@ class RollDiffTransformerLowdimPolicy(BaseLowdimPolicy):
                                    to_noise_levels=to_noise_levels, condition=cond)
 
         # === Optimize === #
-        self.ddim_step(self.trajectory,
-                       from_noise_levels=self.from_noise_levels,
-                       to_noise_levels=self.to_noise_levels,
-                       condition=cond)
+        self.noise_level_scheduler.reset()
+        while (not self.noise_level_scheduler.update()):
+            from_noise_levels, to_noise_levels = self.noise_level_scheduler.get_noise_schedule(batch_size=B)
+            self.ddim_step(self.trajectory,
+                           from_noise_levels=from_noise_levels,
+                           to_noise_levels=to_noise_levels,
+                           condition=cond)
 
         # Shift trajectory
         self.trajectory = self.shift_trajectory(self.trajectory)

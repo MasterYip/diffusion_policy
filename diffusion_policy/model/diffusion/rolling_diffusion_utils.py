@@ -154,16 +154,22 @@ def exp_noise_mask(horizon, max_noise_level, sigma=2.0, pad_zero=1,
 
 class BaseNoiseScheduler:
     def __init__(self,
-                 batch_size: int,
                  dtype: torch.dtype,
-                 device: str = 'cpu',
+                 device: torch.device,
                  ):
-        self.batch_size = batch_size
         self.dtype = dtype
         self.device = device
         self.from_noise_levels = None
         self.to_noise_levels = None
+
+        self.is_updated = False
         pass
+
+    def reset(self):
+        """
+        Reset scheduler to initial state
+        """
+        self.is_updated = False
 
     def update(self) -> bool:
         """
@@ -171,9 +177,13 @@ class BaseNoiseScheduler:
 
         :return: True as stop signal
         """
-        return True
+        if not self.is_updated:
+            self.is_updated = True
+            return False
+        else:
+            return True
 
-    def get_noise_schedule(self) -> Tuple:
+    def get_noise_schedule(self, batch_size=1):
         raise NotImplementedError("Must be implemented to return Tuple[from_noise_levels, to_noise_levels]")
 
 
@@ -182,34 +192,38 @@ class ConstLevelNoiseScheduler(BaseNoiseScheduler):
                  max_level: int,
                  horizon: int,
                  level_subdivision: int = 10,
-                 batch_size: int = 1,
                  dtype: torch.dtype = torch.int64,
-                 device: str = 'cpu',
+                 device: torch.device = torch.device('cuda:0'),
                  ):
-        self.max_level = max_level
+
+        self.max_level = max_level  # ramge: [0, max_level-1]
         self.horizon = horizon
         self.level_subdivision = level_subdivision
-        self.batch_size = batch_size
-        self.dtype = dtype
-        self.device = device
-        super().__init__(batch_size, dtype, device)
+        super().__init__(dtype, device)
         self.progress_cnt = level_subdivision
-        self.subdivide_levels = torch.linspace(0, max_level, level_subdivision).to(self.device, dtype=dtype)
-
-    def update(self) -> bool:
-        self.progress_cnt -= 1
-        if self.progress_cnt < 0:
-            return True
-        self.from_noise_levels = torch.ones(self.batch_size, self.horizon).to(self.device, dtype=self.dtype)\
-            * self.subdivide_levels[self.progress_cnt]
-        self.to_noise_levels = torch.ones(self.batch_size, self.horizon).to(self.device, dtype=self.dtype)\
-            * self.subdivide_levels[self.progress_cnt - 1]
-        return False
+        self.subdivide_levels = torch.linspace(0, max_level-1, level_subdivision).to(self.device, dtype=dtype)
 
     # === Interface === #
 
-    def get_noise_schedule(self):
-        return self.from_noise_levels, self.to_noise_levels
+    def reset(self):
+        """
+        Reset scheduler to initial state
+        """
+        self.progress_cnt = self.level_subdivision
+
+    def update(self) -> bool:
+        self.progress_cnt -= 1
+        if self.progress_cnt <= 0:
+            return True
+        self.from_noise_levels = (torch.ones(1, self.horizon).to(self.device)
+                                  * self.subdivide_levels[self.progress_cnt]).to(self.device, dtype=self.dtype)
+        self.to_noise_levels = (torch.ones(1, self.horizon).to(self.device)
+                                * self.subdivide_levels[self.progress_cnt - 1]).to(self.device, dtype=self.dtype)
+        return False
+
+    def get_noise_schedule(self, batch_size=1):
+        return self.from_noise_levels.repeat(batch_size, 1).to(self.device), \
+            self.to_noise_levels.repeat(batch_size, 1).to(self.device)
 
 
 class ShiftBackNoiseScheduler(BaseNoiseScheduler):
@@ -218,23 +232,22 @@ class ShiftBackNoiseScheduler(BaseNoiseScheduler):
                  horizon: int,
                  sigma: float = 2.0,
                  pad_zero: int = 1,
-                 batch_size: int = 1,
                  dtype: torch.dtype = torch.int64,
-                 device: str = 'cpu',
+                 device: torch.device = torch.device('cuda:0'),
                  ):
+        super().__init__(dtype, device)
         self.max_level = max_level
         self.horizon = horizon
         self.sigma = sigma
         self.pad_zero = pad_zero
-        self.dtype = dtype
-        super().__init__(batch_size, dtype, device)
         self.to_noise_levels = exp_noise_mask(self.horizon, self.max_level, self.sigma,
-                                              self.pad_zero, self.dtype).repeat(self.batch_size, 1).to(self.device)
+                                              self.pad_zero, self.dtype).to(self.device)
         self.from_noise_levels = self.shift_noise_mask(self.to_noise_levels)
 
     def shift_noise_mask(self, noise_mask):
-        return torch.cat([noise_mask[:, 1:], noise_mask[:, -1].unsqueeze(1)], dim=1).to(self.device)
+        return torch.cat([noise_mask[1:], noise_mask[-1].unsqueeze(0)], dim=0).to(self.device)
 
     # === Interface === #
-    def get_noise_schedule(self):
-        return self.from_noise_levels, self.to_noise_levels
+    def get_noise_schedule(self, batch_size=1):
+        return self.from_noise_levels.repeat(batch_size, 1), \
+            self.to_noise_levels.repeat(batch_size, 1)
