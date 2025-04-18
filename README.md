@@ -101,12 +101,34 @@ python eval.py --checkpoint data/0550-test_mean_score=0.969.ckpt --output_dir da
 
 ### Legged Gym CyberDog (DiffuseLoco)
 
+**Train Cyber2 Stand**
+
 ```bash
 python train.py \
 --config-dir=task_configs \
 --config-name=cyber_diffusion_policy_medium_model.yaml \
 training.seed=42 training.device=cuda:0 \
 hydra.run.dir='data/outputs/${now:%Y.%m.%d}/${now:%H.%M.%S}_${name}_${task_name}'
+```
+
+Continue training:
+
+```bash
+python train.py \
+--config-dir=task_configs \
+--config-name=cyber_diffusion_policy_medium_model.yaml \
+training.seed=42 training.device=cuda:0 \
+hydra.run.dir='data/outputs/2025.04.10/14.32.15_train_diffusion_transformer_cyber2_stand_lowdim'
+```
+
+Eval:
+
+```bash
+python eval.py \
+--checkpoint data/outputs/2025.04.18/12.18.41_train_diffusion_transformer_lowdim_legged_lowdim/checkpoints/latest.ckpt \
+--output_dir data/cyber2_eval_output \
+--device cuda:0 \
+--max_steps 2000
 ```
 
 ### Legged Gym Training
