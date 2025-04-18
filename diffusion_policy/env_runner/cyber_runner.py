@@ -63,7 +63,7 @@ class LeggedRunner(BaseLowdimRunner):
         self.max_steps = max_steps
         self.tqdm_interval_sec = tqdm_interval_sec
 
-    def run(self, policy: BaseLowdimPolicy, online=True, generate_data=False, step=1000):
+    def run(self, policy: BaseLowdimPolicy, online=True, generate_data=False, step=300):
         device = policy.device
         dtype = policy.dtype
         env = self.env

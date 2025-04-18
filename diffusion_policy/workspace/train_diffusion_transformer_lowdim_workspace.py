@@ -220,7 +220,8 @@ class TrainDiffusionTransformerLowdimWorkspace(BaseWorkspace):
                 if (self.epoch % cfg.training.rollout_every) == 0:
                     runner_log = env_runner.run(policy)
                     # log all
-                    step_log.update(runner_log)
+                    if runner_log is not None:
+                        step_log.update(runner_log)
 
                 # run validation
                 # if (self.epoch % cfg.training.val_every) == 0:
