@@ -99,6 +99,16 @@ Run the evaluation script:
 python eval.py --checkpoint data/0550-test_mean_score=0.969.ckpt --output_dir data/pusht_eval_output --device cuda:0
 ```
 
+### Legged Gym CyberDog (DiffuseLoco)
+
+```bash
+python train.py \
+--config-dir=task_configs \
+--config-name=cyber_diffusion_policy_medium_model.yaml \
+training.seed=42 training.device=cuda:0 \
+hydra.run.dir='data/outputs/${now:%Y.%m.%d}/${now:%H.%M.%S}_${name}_${task_name}'
+```
+
 ### Legged Gym Training
 
 **Generate Dataset**
