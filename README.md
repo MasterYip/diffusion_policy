@@ -176,11 +176,11 @@ hydra.run.dir='data/outputs/2025.04.17/17.48.17_train_diffusion_transformer_lowd
 
 ```bash
 python eval.py \
---checkpoint data/outputs/2025.04.17/20.45.25_train_diffusion_transformer_lowdim_legged_gym_lowdim/checkpoints/latest.ckpt \
+--checkpoint data/outputs/2025.04.18/16.35.43_train_diffusion_transformer_lowdim_legged_gym_lowdim/checkpoints/latest.ckpt \
 --output_dir data/legged_gym_output \
 --device cuda:0 \
 --max_steps 5000 \
---num_envs 1 \
+--num_envs 16
 ```
 
 You can visualize the policy by running without the `--headless` flag:

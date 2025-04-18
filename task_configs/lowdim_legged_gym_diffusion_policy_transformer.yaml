@@ -56,21 +56,22 @@ policy:
   action_dim: 18
   horizon: 50
   model:
-    _target_: diffusion_policy.model.diffusion.transformer_for_diffusion.TransformerForDiffusion
+    _target_: diffusion_policy.model.diffusion.transformer_for_diffuseloco.TransformerForDiffuseLoco
     causal_attn: true
     cond_dim: 66  # Match obs dimension
     horizon: 50
     input_dim: 18  # Match action dimension
     n_cond_layers: 0
-    n_emb: 512  # Increased embedding dimension
-    n_head: 8  # More attention heads
-    n_layer: 12  # More transformer layers
+    n_emb: 128  # Reduced embedding dimension (from cyber config)
+    n_head: 4  # Reduced attention heads (from cyber config)
+    n_layer: 4  # Reduced transformer layers (from cyber config)
     n_obs_steps: 8
     obs_as_cond: true
     output_dim: 18  # Match action dimension
-    p_drop_attn: 0.2
+    p_drop_attn: 0.3  # Updated dropout value (from cyber config)
     p_drop_emb: 0.0
     time_as_cond: true
+    separate_goal_conditioning: true  # Added from cyber config
   n_action_steps: 48
   n_obs_steps: 8
   noise_scheduler:
@@ -79,10 +80,10 @@ policy:
     beta_schedule: squaredcos_cap_v2
     beta_start: 0.0001
     clip_sample: true
-    num_train_timesteps: 100
+    num_train_timesteps: 10  # Reduced from 100 to 10 as in cyber config
     prediction_type: epsilon
     variance_type: fixed_small
-  num_inference_steps: 100
+  num_inference_steps: 10  # Reduced from 100 to 10 as in cyber config
   obs_as_cond: true
   obs_dim: 66
   pred_action_steps_only: false
@@ -116,17 +117,17 @@ training:
   device: cuda:0
   gradient_accumulate_every: 1
   lr_scheduler: cosine
-  lr_warmup_steps: 1000
+  lr_warmup_steps: 10000  # Increased from 1000 to 10000 as in cyber config
   max_train_steps: null
   max_val_steps: null
   num_epochs: 5000
   resume: true
-  rollout_every: 2
-  sample_every: 10
+  rollout_every: 3  # Changed from 2 to 3 as in cyber config
+  sample_every: 3  # Changed from 10 to 3 as in cyber config
   seed: 42
   tqdm_interval_sec: 1.0
   use_ema: true
-  val_every: 20
+  val_every: 10  # Changed from 20 to 10 as in cyber config
 val_dataloader:
   batch_size: 512
   num_workers: 4
