@@ -10,7 +10,7 @@ conda activate diffuseloco
 
 ```bash
 python train.py \
---config-dir=. \
+--config-dir=task_configs \
 --config-name=lowdim_obsavoid_rolldiff_policy_transformer.yaml \
 training.seed=42 training.device=cuda:0 \
 hydra.run.dir='data/outputs/${now:%Y.%m.%d}/${now:%H.%M.%S}_${name}_${task_name}'
@@ -20,7 +20,7 @@ Continue training
 
 ```bash
 python train.py \
---config-dir=. \
+--config-dir=task_configs \
 --config-name=lowdim_obsavoid_rolldiff_policy_transformer.yaml \
 training.seed=42 training.device=cuda:0 \
 hydra.run.dir='data/outputs/2025.03.27/14.14.53_train_diffusion_transformer_lowdim_obsavoid_lowdim'
@@ -38,7 +38,8 @@ python eval.py --checkpoint data/rolldiff_obsavoid_acc_0327.ckpt --output_dir da
 
 ```bash
 python train.py \
---config-dir=. --config-name=lowdim_obsavoid_diffusion_policy_transformer.yaml \
+--config-dir=task_configs \
+--config-name=lowdim_obsavoid_diffusion_policy_transformer.yaml \
 training.seed=42 training.device=cuda:0 \
 hydra.run.dir='data/outputs/${now:%Y.%m.%d}/${now:%H.%M.%S}_${name}_${task_name}'
 ```
@@ -47,7 +48,7 @@ Continue training
 
 ```bash
 python train.py \
---config-dir=. \
+--config-dir=task_configs \
 --config-name=lowdim_obsavoid_diffusion_policy_transformer.yaml \
 training.seed=42 training.device=cuda:0 \
 hydra.run.dir='data/outputs/2025.03.20/10.50.50_train_diffusion_transformer_lowdim_obsavoid_lowdim'
@@ -70,12 +71,14 @@ Launch training with seed 42 on GPU 0.
 
 ```bash
 python train.py \
---config-dir=. --config-name=image_pusht_diffusion_policy_cnn.yaml \
+--config-dir=task_configs \
+--config-name=image_pusht_diffusion_policy_cnn.yaml \
 training.seed=42 training.device=cuda:0 \
 hydra.run.dir='data/outputs/${now:%Y.%m.%d}/${now:%H.%M.%S}_${name}_${task_name}'
 ###
 python train.py \
---config-dir=. --config-name=low_dim_block_pushing_diffusion_policy_cnn.yaml \
+--config-dir=task_configs \
+--config-name=low_dim_block_pushing_diffusion_policy_cnn.yaml \
 training.seed=42 training.device=cuda:0 \
 hydra.run.dir='data/outputs/${now:%Y.%m.%d}/${now:%H.%M.%S}_${name}_${task_name}'
 ```
@@ -87,7 +90,7 @@ cd ~/Documents/CodeSpace/Python/diffusion_policy
 conda activate robodiff
 ###
 python train.py \
---config-dir=. \
+--config-dir=task_configs \
 --config-name=image_pusht_diffusion_policy_cnn.yaml \
 training.seed=42 training.device=cuda:0 \
 hydra.run.dir='data/outputs/2024.09.13/10.17.20_train_diffusion_unet_hybrid_pusht_image'
@@ -153,7 +156,7 @@ python ./diffusion_policy/diffusion_policy/scripts/legged_gym_dataset_gen.py \
 
 ```bash
 python train.py \
---config-dir=. \
+--config-dir=task_configs \
 --config-name=lowdim_legged_gym_diffusion_policy_transformer.yaml \
 training.seed=42 training.device=cuda:0 \
 hydra.run.dir='data/outputs/${now:%Y.%m.%d}/${now:%H.%M.%S}_${name}_${task_name}'
@@ -163,7 +166,7 @@ Continue training:
 
 ```bash
 python train.py \
---config-dir=. \
+--config-dir=task_configs \
 --config-name=lowdim_legged_gym_diffusion_policy_transformer.yaml \
 training.seed=42 training.device=cuda:0 \
 hydra.run.dir='data/outputs/2025.04.17/17.48.17_train_diffusion_transformer_lowdim_legged_gym_lowdim'
@@ -194,7 +197,7 @@ python eval.py \
 
 ```bash
 python train.py \
---config-dir=. \
+--config-dir=task_configs \
 --config-name=lowdim_legged_gym_rolldiff_policy_transformer.yaml \
 training.seed=42 training.device=cuda:0 \
 hydra.run.dir='data/outputs/${now:%Y.%m.%d}/${now:%H.%M.%S}_${name}_${task_name}'
@@ -204,7 +207,7 @@ Continue training:
 
 ```bash
 python train.py \
---config-dir=. \
+--config-dir=task_configs \
 --config-name=lowdim_legged_gym_rolldiff_policy_transformer.yaml \
 training.seed=42 training.device=cuda:0 \
 hydra.run.dir='data/outputs/2025.04.01/20.19.36_train_diffusion_transformer_lowdim_legged_gym_lowdim'
