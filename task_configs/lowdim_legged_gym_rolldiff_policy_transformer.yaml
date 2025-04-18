@@ -78,13 +78,13 @@ policy:
       horizon: 50
       input_dim: 18  # Match action dimension
       n_cond_layers: 0
-      n_emb: 512  # Increased embedding dimension
-      n_head: 8  # More attention heads
-      n_layer: 12  # More transformer layers
+      n_emb: 128  # Reduced from 512 to 128 as in cyber config
+      n_head: 4  # Reduced from 8 to 4 as in cyber config
+      n_layer: 4  # Reduced from 12 to 4 as in cyber config
       n_obs_steps: 8
       obs_as_cond: true
       output_dim: 18  # Match action dimension
-      p_drop_attn: 0.2
+      p_drop_attn: 0.3  # Increased from 0.2 to 0.3 as in cyber config
       p_drop_emb: 0.0
       time_as_cond: true
       max_noise_level: 100
@@ -127,20 +127,20 @@ training:
   device: cuda:0
   gradient_accumulate_every: 1
   lr_scheduler: cosine
-  lr_warmup_steps: 1000
+  lr_warmup_steps: 10000  # Increased from 1000 to 10000 as in cyber config
   max_train_steps: null
   max_val_steps: null
   num_epochs: 5000
   resume: true
-  rollout_every: 2
-  sample_every: 10
+  rollout_every: 3  # Changed from 2 to 3 as in cyber config
+  sample_every: 3  # Changed from 10 to 3 as in cyber config
   seed: 42
   tqdm_interval_sec: 1.0
   use_ema: true
-  val_every: 20
+  val_every: 10  # Changed from 20 to 10 as in cyber config
 val_dataloader:
   batch_size: 512
   num_workers: 4
   persistent_workers: true
   pin_memory: true
-  shuffle: false 
+  shuffle: false
