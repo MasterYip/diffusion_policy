@@ -23,13 +23,13 @@ from diffusion_policy.env.legged_gym.legged_gym_env import LeggedGymEnv
 
 @click.command()
 @click.option('-o', '--output', required=True, default="diffusion_policy/data/legged_gym/elspider_dataset.zarr", help="Path to save dataset (e.g., data/legged_gym/anymal_dataset.zarr)")
-@click.option('-c', '--checkpoints', required=True, default=["legged_gym_cmp/legged_gym/logs/flat_elspider_air/exported/policies/policy_1.pt"], multiple=True, help="Paths to model checkpoints")
+@click.option('-c', '--checkpoints', required=True, default=["extended_legged_gym/legged_gym/logs/flat_elspider_air/exported/policies/policy_1.pt"], multiple=True, help="Paths to model checkpoints")
 @click.option('-t', '--task_name', default="elspider_air_flat", help="Legged gym task name")
-@click.option('-n', '--n_episodes', default=100, help="Number of episodes to collect per checkpoint")
-@click.option('-e', '--episode_steps', default=400, help="Maximum steps per episode")
+@click.option('-n', '--n_episodes', default=10000, help="Number of episodes to collect per checkpoint")
+@click.option('-e', '--episode_steps', default=500, help="Maximum steps per episode")
 @click.option('-v', '--visualize', is_flag=True, help="Enable visualization")
 @click.option('--headless', is_flag=True, help="Run in headless mode (no visualization)")
-@click.option('--num_envs', default=40, help="Number of parallel environments to run")
+@click.option('--num_envs', default=100, help="Number of parallel environments to run")
 @click.option('--seed', default=42, help="Random seed")
 @click.option('--chunk_length', default=-1, help="Chunk length for zarr file, -1 for auto")
 def main(output, checkpoints, task_name, n_episodes, episode_steps,
