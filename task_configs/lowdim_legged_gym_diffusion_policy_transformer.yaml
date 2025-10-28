@@ -9,9 +9,9 @@ checkpoint:
     mode: max
     monitor_key: test_mean_score
 dataloader:
-  batch_size: 512  # Larger batch size for legged gym data
-  num_workers: 4
-  persistent_workers: true
+  batch_size: 4096
+  num_workers: 1
+  persistent_workers: false
   pin_memory: true
   shuffle: true
 ema:
@@ -22,7 +22,7 @@ ema:
   power: 0.75
   update_after_step: 0
 exp_name: default
-horizon: 50  # Longer horizon for locomotion tasks
+horizon: 12
 keypoint_visible_rate: 1.0
 logging:
   group: null
@@ -38,7 +38,7 @@ logging:
 multi_run:
   run_dir: data/outputs/${now:%Y.%m.%d}/${now:%H.%M.%S}_train_diffusion_transformer_lowdim_legged_gym
   wandb_name_base: ${now:%Y.%m.%d}-${now:%H.%M.%S}_train_diffusion_transformer_lowdim_legged_gym
-n_action_steps: 48  # Action prediction horizon
+n_action_steps: 4  # Action prediction horizon
 n_latency_steps: 0
 n_obs_steps: 8  # Number of observation steps to condition on
 name: train_diffusion_transformer_lowdim
@@ -54,17 +54,17 @@ past_action_visible: false
 policy:
   _target_: diffusion_policy.policy.diffusion_transformer_lowdim_policy.DiffusionTransformerLowdimPolicy
   action_dim: 18
-  horizon: 50
+  horizon: 12
   model:
     _target_: diffusion_policy.model.diffusion.transformer_for_diffuseloco.TransformerForDiffuseLoco
     causal_attn: true
     cond_dim: 66  # Match obs dimension
-    horizon: 50
+    horizon: 12
     input_dim: 18  # Match action dimension
     n_cond_layers: 0
-    n_emb: 128  # Reduced embedding dimension (from cyber config)
-    n_head: 4  # Reduced attention heads (from cyber config)
-    n_layer: 4  # Reduced transformer layers (from cyber config)
+    n_emb: 128
+    n_head: 4
+    n_layer: 4
     n_obs_steps: 8
     obs_as_cond: true
     output_dim: 18  # Match action dimension
@@ -72,7 +72,7 @@ policy:
     p_drop_emb: 0.0
     time_as_cond: true
     separate_goal_conditioning: true  # Added from cyber config
-  n_action_steps: 48
+  n_action_steps: 4
   n_obs_steps: 8
   noise_scheduler:
     _target_: diffusers.schedulers.scheduling_ddpm.DDPMScheduler
@@ -80,10 +80,10 @@ policy:
     beta_schedule: squaredcos_cap_v2
     beta_start: 0.0001
     clip_sample: true
-    num_train_timesteps: 10  # Reduced from 100 to 10 as in cyber config
+    num_train_timesteps: 10
     prediction_type: epsilon
     variance_type: fixed_small
-  num_inference_steps: 10  # Reduced from 100 to 10 as in cyber config
+  num_inference_steps: 10
   obs_as_cond: true
   obs_dim: 66
   pred_action_steps_only: false
@@ -92,17 +92,17 @@ task:
   action_dim: 18
   dataset:
     _target_: diffusion_policy.dataset.legged_gym_dataset.LeggedGymDataset
-    horizon: 50
+    horizon: 12
     max_train_episodes: 1000  # Adjust based on your dataset size
-    pad_after: 8
-    pad_before: 2
+    pad_after: 7
+    pad_before: 1
     seed: 42
-    val_ratio: 0.1
+    val_ratio: 0.02
     zarr_path: data/legged_gym/elspider_dataset.zarr  # Path to your generated dataset
   env_runner:
     _target_: diffusion_policy.env_runner.legged_gym_runner.LeggedGymRunner
     max_steps: 300
-    n_action_steps: 48
+    n_action_steps: 4
     n_obs_steps: 8
     task_name: elspider_air_flat  # Change to match your legged gym environment
     n_envs: 16  # Number of parallel environments for evaluation
@@ -117,20 +117,20 @@ training:
   device: cuda:0
   gradient_accumulate_every: 1
   lr_scheduler: cosine
-  lr_warmup_steps: 10000  # Increased from 1000 to 10000 as in cyber config
+  lr_warmup_steps: 10000
   max_train_steps: null
   max_val_steps: null
-  num_epochs: 5000
+  num_epochs: 1000
   resume: true
-  rollout_every: 3  # Changed from 2 to 3 as in cyber config
-  sample_every: 3  # Changed from 10 to 3 as in cyber config
+  rollout_every: 3
+  sample_every: 3
   seed: 42
   tqdm_interval_sec: 1.0
   use_ema: true
-  val_every: 10  # Changed from 20 to 10 as in cyber config
+  val_every: 10
 val_dataloader:
-  batch_size: 512
-  num_workers: 4
-  persistent_workers: true
+  batch_size: 4096
+  num_workers: 1
+  persistent_workers: false
   pin_memory: true
   shuffle: false

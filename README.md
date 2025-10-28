@@ -128,7 +128,7 @@ Eval:
 
 ```bash
 python eval.py \
---checkpoint data/outputs/2025.04.18/12.18.41_train_diffusion_transformer_lowdim_legged_lowdim/checkpoints/latest.ckpt \
+--checkpoint data/outputs/2025.10.27/19.10.42_train_diffusion_transformer_lowdim_legged_lowdim/checkpoints/latest.ckpt \
 --output_dir data/cyber2_eval_output \
 --device cuda:0 \
 --max_steps 2000
@@ -176,7 +176,7 @@ hydra.run.dir='data/outputs/2025.04.17/17.48.17_train_diffusion_transformer_lowd
 
 ```bash
 python eval.py \
---checkpoint data/outputs/2025.04.18/16.35.43_train_diffusion_transformer_lowdim_legged_gym_lowdim/checkpoints/latest.ckpt \
+--checkpoint data/outputs/2025.10.27/17.09.25_train_diffusion_transformer_lowdim_legged_gym_lowdim/checkpoints/latest.ckpt \
 --output_dir data/legged_gym_output \
 --device cuda:0 \
 --max_steps 5000 \
@@ -217,7 +217,7 @@ hydra.run.dir='data/outputs/2025.04.01/20.19.36_train_diffusion_transformer_lowd
 
 ```bash
 python eval.py \
---checkpoint data/outputs/2025.04.17/17.48.17_train_diffusion_transformer_lowdim_legged_gym_lowdim/checkpoints/latest.ckpt \
+--checkpoint data/outputs/2025.10.15/18.59.00_train_diffusion_transformer_lowdim_legged_gym_lowdim/checkpoints/latest.ckpt \
 --output_dir data/legged_gym_output \
 --device cuda:0 \
 --max_steps 5000
