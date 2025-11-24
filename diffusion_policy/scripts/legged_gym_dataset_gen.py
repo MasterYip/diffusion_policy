@@ -25,7 +25,7 @@ from diffusion_policy.env.legged_gym.legged_gym_env import LeggedGymEnv
 @click.option('-o', '--output', required=True, default="diffusion_policy/data/legged_gym/elspider_dataset.zarr", help="Path to save dataset (e.g., data/legged_gym/anymal_dataset.zarr)")
 @click.option('-c', '--checkpoints', required=True, default=["extended_legged_gym/legged_gym/logs/flat_elspider_air/exported/policies/policy_1.pt"], multiple=True, help="Paths to model checkpoints")
 @click.option('-t', '--task_name', default="elspider_air_flat", help="Legged gym task name")
-@click.option('-n', '--n_episodes', default=10000, help="Number of episodes to collect per checkpoint")
+@click.option('-n', '--n_episodes', default=4000, help="Number of episodes to collect per checkpoint")
 @click.option('-e', '--episode_steps', default=500, help="Maximum steps per episode")
 @click.option('-v', '--visualize', is_flag=True, help="Enable visualization")
 @click.option('--headless', is_flag=True, help="Run in headless mode (no visualization)")
@@ -231,9 +231,11 @@ def load_policy_from_checkpoint(checkpoint_path, task_name):
         # Extract checkpoint number from filename if it follows the pattern model_X.pt
         checkpoint_name = os.path.basename(checkpoint_path)
         if checkpoint_name.startswith("model_") and checkpoint_name.endswith(".pt"):
+            print("Loading training checkpoint...")
             checkpoint_num = int(checkpoint_name[6:-3])
             train_cfg.runner.checkpoint = checkpoint_num
-        elif checkpoint_name == "policy_1.pt":
+        else:
+            print("Loading JIT checkpoint...")
             # This is an exported policy, which requires a different loading approach
             return load_exported_policy(checkpoint_path)
 

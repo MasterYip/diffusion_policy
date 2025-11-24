@@ -128,7 +128,7 @@ Eval:
 
 ```bash
 python eval.py \
---checkpoint data/outputs/2025.10.27/19.10.42_train_diffusion_transformer_lowdim_legged_lowdim/checkpoints/latest.ckpt \
+--checkpoint checkpoints/cyberdog/stand.ckpt \
 --output_dir data/cyber2_eval_output \
 --device cuda:0 \
 --max_steps 2000
@@ -144,11 +144,11 @@ First, generate a dataset from legged gym environments:
 cd <REPO_ROOT_DIR>
 python ./diffusion_policy/diffusion_policy/scripts/legged_gym_dataset_gen.py \
   --output "./diffusion_policy/data/legged_gym/elspider_dataset.zarr" \
-  --checkpoints "legged_gym_cmp/legged_gym/logs/flat_elspider_air/exported/policies/policy_1.pt" \
+  --checkpoints "extended_legged_gym/legged_gym/ckpt/elspider_air/plane_walk_300_jit.pt" \
   --task_name "elspider_air_flat" \
-  --n_episodes 256 \
-  --episode_steps 1000 \
-  --num_envs 256 \
+  --n_episodes 4000 \
+  --episode_steps 500 \
+  --num_envs 1000 \
   --headless
 ```
 
@@ -176,7 +176,7 @@ hydra.run.dir='data/outputs/2025.04.17/17.48.17_train_diffusion_transformer_lowd
 
 ```bash
 python eval.py \
---checkpoint data/outputs/2025.10.27/17.09.25_train_diffusion_transformer_lowdim_legged_gym_lowdim/checkpoints/latest.ckpt \
+--checkpoint data/outputs/2025.10.28/10.00.51_train_diffusion_transformer_lowdim_legged_gym_lowdim/checkpoints/latest.ckpt \
 --output_dir data/legged_gym_output \
 --device cuda:0 \
 --max_steps 5000 \
