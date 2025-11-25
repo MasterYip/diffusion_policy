@@ -10,7 +10,7 @@ checkpoint:
     monitor_key: test_mean_score
 dataloader:
   batch_size: 4096
-  num_workers: 1
+  num_workers: 8
   persistent_workers: false
   pin_memory: true
   shuffle: true
@@ -27,7 +27,7 @@ keypoint_visible_rate: 1.0
 logging:
   group: null
   id: null
-  mode: offline
+  mode: online
   name: legged_gym_diffusion_transformer
   project: diffusion_policy_legged_gym
   resume: true
@@ -71,7 +71,7 @@ policy:
     p_drop_attn: 0.3  # Updated dropout value (from cyber config)
     p_drop_emb: 0.0
     time_as_cond: true
-    separate_goal_conditioning: true  # Added from cyber config
+    separate_goal_conditioning: true
   n_action_steps: 4
   n_obs_steps: 8
   noise_scheduler:
@@ -87,18 +87,18 @@ policy:
   obs_as_cond: true
   obs_dim: 66
   pred_action_steps_only: false
-pred_action_steps_only: true
+pred_action_steps_only: false
 task:
   action_dim: 18
   dataset:
     _target_: diffusion_policy.dataset.legged_gym_dataset.LeggedGymDataset
     horizon: 12
-    max_train_episodes: 1000  # Adjust based on your dataset size
+    max_train_episodes: 200
     pad_after: 7
     pad_before: 1
     seed: 42
     val_ratio: 0.02
-    zarr_path: data/legged_gym/elspider_dataset.zarr  # Path to your generated dataset
+    zarr_path: data/legged_gym/elspider_dataset.zarr # Path to your generated dataset
   env_runner:
     _target_: diffusion_policy.env_runner.legged_gym_runner.LeggedGymRunner
     max_steps: 300
@@ -122,7 +122,7 @@ training:
   max_val_steps: null
   num_epochs: 1000
   resume: true
-  rollout_every: 3
+  rollout_every: 50
   sample_every: 3
   seed: 42
   tqdm_interval_sec: 1.0
