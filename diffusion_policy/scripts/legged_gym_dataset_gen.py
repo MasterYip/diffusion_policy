@@ -32,8 +32,9 @@ from diffusion_policy.env.legged_gym.legged_gym_env import LeggedGymEnv
 @click.option('--num_envs', default=100, help="Number of parallel environments to run")
 @click.option('--seed', default=42, help="Random seed")
 @click.option('--chunk_length', default=-1, help="Chunk length for zarr file, -1 for auto")
+@click.option('--realtime', is_flag=True, help="Run in real-time mode with proper dt timing")
 def main(output, checkpoints, task_name, n_episodes, episode_steps,
-         visualize, headless, num_envs, seed, chunk_length):
+         visualize, headless, num_envs, seed, chunk_length, realtime):
     """Generate a dataset from legged gym environments using loaded checkpoints."""
 
     # Create output directory if it doesn't exist
@@ -131,6 +132,10 @@ def main(output, checkpoints, task_name, n_episodes, episode_steps,
 
             # Step the environment
             next_obs, rewards, dones, infos = env.step(actions)
+            
+            # Ensure each step takes the actual environment dt time if in real-time mode
+            if realtime:
+                time.sleep(env.env.dt)
 
             # Store data for each environment
             for i in range(env.num_envs):

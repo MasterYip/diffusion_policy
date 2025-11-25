@@ -8,6 +8,7 @@ LastEditors: Raymon Yip
 '''
 
 import os
+import time
 import numpy as np
 import isaacgym
 import torch
@@ -154,7 +155,7 @@ class LeggedGymRunner(BaseLowdimRunner):
 
             # Step the environment
             next_obs, rewards, dones, info = self.env.step(actions)
-
+            time.sleep(self.env.env.dt)
             # Update state history
             if step_idx < self.max_steps - 1:  # No need to update on the last step
                 state_history = torch.roll(state_history, shifts=-1, dims=1)
