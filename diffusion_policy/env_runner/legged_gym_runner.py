@@ -127,64 +127,82 @@ class LeggedGymRunner(BaseLowdimRunner):
             mininterval=self.tqdm_interval_sec
         )
 
-        # Initialize observation history
-        # Format for the state history: [num_envs, history_len, obs_dim]
-        state_history = torch.zeros(
-            (self.env.num_envs, self.history_len, self.env.num_obs),
-            dtype=dtype,
-            device=device
-        )
+        # Initialize observation and action history - matching cyber_runner structure
+        history = self.n_obs_steps
+        
+        # Use get_diffusion_observation if available, otherwise use regular obs
+        if hasattr(self.env, 'get_diffusion_observation'):
+            diffusion_obs = self.env.get_diffusion_observation().to(device)
+            obs_dim = diffusion_obs.shape[-1]
+        else:
+            diffusion_obs = obs.to(device)
+            obs_dim = obs.shape[-1]
+        
+        state_history = torch.zeros((self.env.num_envs, history+1, obs_dim), dtype=dtype, device=device)
+        action_history = torch.zeros((self.env.num_envs, history, self.env.num_actions), dtype=dtype, device=device)
+
+        # Initialize state history with current observation - matching cyber_runner pattern
+        state_history[:, :, :] = diffusion_obs[:, None, :]
 
         # Initialize metrics
         episode_lengths = []
         episode_rewards = []
         current_episode_rewards = torch.zeros(self.env.num_envs, device=device)
 
-        # Fill initial state history with the first observation
-        for i in range(self.history_len):
-            state_history[:, i, :] = obs
-
-        for step_idx in range(self.max_steps):
-            # Prepare observations for the policy
-            obs_dict = {"obs": state_history}
+        step_count = 0
+        while step_count < self.max_steps:
+            # Prepare observations for policy - USE DELAYED INPUTS like cyber_runner
+            obs_dict = {"obs": state_history[:, -policy.n_obs_steps-1:-1, :]}
 
             # Get actions from policy
             with torch.no_grad():
                 action_dict = policy.predict_action(obs_dict)
-                actions = action_dict["action_pred"][:, 0, :]  # Take first predicted action
+                pred_action = action_dict["action_pred"]
+                
+                # USE THE NEXT PREDICTED ACTION - RHC Framework like cyber_runner
+                action = pred_action[:, history:history+1, :]
 
-            # Step the environment
-            next_obs, rewards, dones, info = self.env.step(actions)
-            time.sleep(self.env.env.dt)
-            # Update state history
-            if step_idx < self.max_steps - 1:  # No need to update on the last step
+            # Step environment multiple times if n_action_steps > 1 (matching cyber_runner)
+            self.n_action_steps = action.shape[1]
+            
+            for i in range(self.n_action_steps):
+                action_step = action[:, i, :]
+                next_obs, rewards, dones, info = self.env.step(action_step)
+                
+                # Update state and action history - matching cyber_runner roll pattern
                 state_history = torch.roll(state_history, shifts=-1, dims=1)
-                state_history[:, -1, :] = next_obs
+                action_history = torch.roll(action_history, shifts=-1, dims=1)
+                
+                # Update with diffusion observation if available
+                if hasattr(self.env, 'get_diffusion_observation'):
+                    state_history[:, -1, :] = self.env.get_diffusion_observation().to(device)
+                else:
+                    state_history[:, -1, :] = next_obs.to(device)
+                
+                step_count += 1
+                
+                # Accumulate rewards
+                current_episode_rewards += rewards
 
-            # Accumulate rewards
-            current_episode_rewards += rewards
-
-            # Handle episode terminations
-            if dones.any():
-                # Get indices of terminated episodes
-                done_indices = torch.where(dones)[0]
-
-                for idx in done_indices:
+                # Handle episode terminations - matching cyber_runner reset logic
+                env_ids = torch.nonzero(dones, as_tuple=False).squeeze(1).int()
+                if len(env_ids) > 0:
+                    # Reset state and action history for terminated episodes
+                    current_obs = state_history[:, -1, :].to(device)
+                    state_history[env_ids, :, :] = current_obs[env_ids][:, None, :]
+                    action_history[env_ids, :, :] = 0.0
+                    
                     # Record metrics for terminated episodes
-                    episode_rewards.append(current_episode_rewards[idx].item())
-                    episode_lengths.append(step_idx + 1)
+                    for idx in env_ids:
+                        episode_rewards.append(current_episode_rewards[idx].item())
+                        episode_lengths.append(step_count)
+                        print(f"Episode finished with reward {episode_rewards[-1]:.2f} after {episode_lengths[-1]} steps")
+                        
+                        # Reset rewards for terminated episodes
+                        current_episode_rewards[idx] = 0
 
-                    # Reset rewards for terminated episodes
-                    current_episode_rewards[idx] = 0
-
-                    # Print some stats about the terminated episode
-                    print(f"Episode finished with reward {episode_rewards[-1]:.2f} after {episode_lengths[-1]} steps")
-
-            # Update obs for next step
-            obs = next_obs
-
-            # Update progress bar
-            pbar.update(1)
+            # Update progress bar by number of action steps taken
+            pbar.update(action.shape[1])
 
         pbar.close()
 
