@@ -23,19 +23,20 @@ from diffusion_policy.env.legged_gym.legged_gym_env import LeggedGymEnv
 
 @click.command()
 @click.option('-o', '--output', required=True, default="diffusion_policy/data/legged_gym/elspider_dataset.zarr", help="Path to save dataset (e.g., data/legged_gym/anymal_dataset.zarr)")
-@click.option('-c', '--checkpoints', required=True, default=["extended_legged_gym/legged_gym/logs/flat_elspider_air/exported/policies/policy_1.pt"], multiple=True, help="Paths to model checkpoints")
+@click.option('-c', '--checkpoints', required=True, default=["source_ckpts/elspider_air_flat.pt"], multiple=True, help="Paths to expert policy checkpoints")
 @click.option('-t', '--task_name', default="elspider_air_flat", help="Legged gym task name")
-@click.option('-n', '--n_episodes', default=4000, help="Number of episodes to collect per checkpoint")
+@click.option('-n', '--n_episodes', default=1000, help="Number of episodes to collect per checkpoint")
 @click.option('-e', '--episode_steps', default=500, help="Maximum steps per episode")
 @click.option('-v', '--visualize', is_flag=True, help="Enable visualization")
 @click.option('--headless', is_flag=True, help="Run in headless mode (no visualization)")
 @click.option('--num_envs', default=100, help="Number of parallel environments to run")
 @click.option('--seed', default=42, help="Random seed")
 @click.option('--chunk_length', default=-1, help="Chunk length for zarr file, -1 for auto")
-@click.option('--realtime', is_flag=True, help="Run in real-time mode with proper dt timing")
+@click.option('--n_obs_steps', default=8, help="Number of observation steps for history")
+@click.option('--len_to_save', default=500000, help="Total length of data to save")
 def main(output, checkpoints, task_name, n_episodes, episode_steps,
-         visualize, headless, num_envs, seed, chunk_length, realtime):
-    """Generate a dataset from legged gym environments using loaded checkpoints."""
+         visualize, headless, num_envs, seed, chunk_length, n_obs_steps, len_to_save):
+    """Generate a dataset from legged gym environments using expert policies."""
 
     # Create output directory if it doesn't exist
     output_dir = os.path.dirname(output)
@@ -81,108 +82,128 @@ def main(output, checkpoints, task_name, n_episodes, episode_steps,
             print(f"Error loading checkpoint {checkpoint_path}: {e}")
             continue
 
-        # Track dimensions for this checkpoint
-        checkpoint_meta = {
-            'checkpoint_path': checkpoint_path,
-            'obs_dim': env.num_obs,
-            'action_dim': env.num_actions
-        }
+        device = env.device
+        dtype = torch.float32
+        
+        # Initialize state and action history (matching cyber_runner exactly)
+        history = n_obs_steps
+        state_history = torch.zeros((env.num_envs, history+1, env.num_obs), dtype=dtype, device=device)
+        action_history = torch.zeros((env.num_envs, history, env.num_actions), dtype=dtype, device=device)
 
-        # Initialize progress bar for this checkpoint
-        checkpoint_progress = tqdm(total=n_episodes, desc=f"Checkpoint {os.path.basename(checkpoint_path)}")
-
-        # Reset environment to start collecting episodes
+        # Reset environment and initialize state history
         obs, _ = env.reset()
+        state_history[:, :, :] = env.get_diffusion_observation().to(device)[:, None, :]
 
-        # Track active episodes
-        active_episodes = [{'obs': [], 'action': [], 'reward': []} for _ in range(env.num_envs)]
-        steps_in_episode = np.zeros(env.num_envs, dtype=np.int32)
+        # Initialize episode recording (matching cyber_runner structure)
+        recorded_obs_episode = np.zeros((env.num_envs, env.max_episode_length+2, env.num_obs))
+        recorded_acs_episode = np.zeros((env.num_envs, env.max_episode_length+3, env.num_actions))
 
-        # Continue until we've collected enough episodes for this checkpoint
-        collected_episodes = 0
+        # Data collection variables
+        recorded_obs = []
+        recorded_acs = []
+        episode_ends = []
+        saved_idx = 0
+        step_count = 0
 
-        while collected_episodes < n_episodes:
-            # Get actions from policy
+        # Initialize progress bar
+        pbar = tqdm(total=len_to_save, desc=f"Collecting data from {os.path.basename(checkpoint_path)}")
+
+        while saved_idx < len_to_save:
+            # Get current observation for recording
+            single_obs_dict = {"obs": state_history[:, -1, :].to(device)}
+
+            # Get expert actions (matching cyber_runner)
             with torch.no_grad():
-                try:
-                    # Make sure observations are on the right device
-                    policy_device = next(policy.policy.parameters()).device if hasattr(policy, 'policy') else env.device
+                expert_action = policy.predict_action(obs.detach())
+                action = expert_action[:, None, :]
 
-                    # Check if the observation needs to be moved to the policy's device
-                    if obs.device != policy_device:
-                        obs_on_device = obs.to(policy_device)
-                    else:
-                        obs_on_device = obs
+            # Record obs and actions BEFORE stepping (like cyber_runner)
+            curr_idx = np.all(recorded_obs_episode == 0, axis=-1).argmax(axis=-1)
+            recorded_obs_episode[np.arange(env.num_envs), curr_idx, :] = single_obs_dict["obs"].cpu().detach().numpy()
+            recorded_acs_episode[np.arange(env.num_envs), curr_idx, :] = expert_action.cpu().detach().numpy()
 
-                    # Get actions
-                    actions = policy.predict_action(obs_on_device)
+            # Step environment (matching cyber_runner's multi-step approach)
+            n_action_steps = action.shape[1]
+            for i in range(n_action_steps):
+                action_step = action[:, i, :]
+                obs, rews, done, infos = env.step(action_step)
 
-                    # Move actions back to the environment's device if needed
-                    if actions.device != env.device:
-                        actions = actions.to(env.device)
+                # Update state and action history (matching cyber_runner)
+                state_history = torch.roll(state_history, shifts=-1, dims=1)
+                action_history = torch.roll(action_history, shifts=-1, dims=1)
 
-                except Exception as e:
-                    print(f"Error during policy inference: {e}")
-                    print(f"Observation shape: {obs.shape}, device: {obs.device}")
-                    import traceback
-                    traceback.print_exc()
+                state_history[:, -1, :] = env.get_diffusion_observation().to(device)
+                single_obs_dict = {"obs": state_history[:, -1, :].to(device)}
 
-                    # Fall back to random actions to continue
-                    actions = torch.rand((env.num_envs, env.num_actions), device=env.device) * 2 - 1
+                step_count += 1
 
-            # Step the environment
-            next_obs, rewards, dones, infos = env.step(actions)
-            
-            # Ensure each step takes the actual environment dt time if in real-time mode
-            if realtime:
-                time.sleep(env.env.dt)
+            # Handle episode terminations (matching cyber_runner exactly)
+            env_ids = torch.nonzero(done, as_tuple=False).squeeze(1).int()
+            if len(env_ids) > 0:
+                # Reset state and action history
+                state_history[env_ids, :, :] = single_obs_dict["obs"][env_ids].to(state_history.device)[:, None, :]
+                action_history[env_ids, :, :] = 0.0
 
-            # Store data for each environment
-            for i in range(env.num_envs):
-                active_episodes[i]['obs'].append(obs[i].cpu().numpy())
-                active_episodes[i]['action'].append(actions[i].cpu().numpy())
-                active_episodes[i]['reward'].append([rewards[i].cpu().numpy()])  # Make reward a list to avoid zarr issue
-                steps_in_episode[i] += 1
+                # Process completed episodes (matching cyber_runner's saving logic)
+                for i in range(len(env_ids)):
+                    env_idx = env_ids[i]
+                    epi_len = np.all(recorded_obs_episode[env_idx] == 0, axis=-1).argmax(axis=-1)
+                    if epi_len == 0:
+                        epi_len = recorded_acs_episode.shape[1]
+                    
+                    # Only save episodes longer than 400 steps (like cyber_runner)
+                    if epi_len > 400:
+                        recorded_obs.append(np.copy(recorded_obs_episode[env_idx, :epi_len]))
+                        recorded_acs.append(np.copy(recorded_acs_episode[env_idx, :epi_len]))
+                        saved_idx += epi_len
+                        episode_ends.append(saved_idx)
+                        
+                        print(f"Saved episode with length {epi_len}, total saved_idx: {saved_idx}")
+                        pbar.update(epi_len)
 
-                # Check if episode is done (either by environment signal or max steps)
-                if dones[i] or steps_in_episode[i] >= episode_steps:
-                    # Only save episodes that have accumulated enough steps
-                    if steps_in_episode[i] > 10:  # Minimum episode length threshold
-                        steps = len(active_episodes[i]['obs'])
-                        # Instead of storing the checkpoint path as a string, encode it as bytes
-                        # This avoids the object_codec issue with zarr
-                        episode_data = {
-                            'obs': np.array(active_episodes[i]['obs']),
-                            'action': np.array(active_episodes[i]['action']),
-                            'reward': np.array(active_episodes[i]['reward']),
-                            # Store numeric metadata directly
-                            'obs_dim': np.full(steps, env.num_obs, dtype=np.int32),
-                            'action_dim': np.full(steps, env.num_actions, dtype=np.int32),
-                            # For the checkpoint path, just store the filename to avoid codec issues
-                            'checkpoint_name': np.array([os.path.basename(checkpoint_path)] * steps, dtype=np.string_)
-                        }
-                        buffer.add_episode(episode_data)
+                    # Reset episode recording
+                    recorded_obs_episode[env_idx] = 0
+                    recorded_acs_episode[env_idx] = 0
 
-                        collected_episodes += 1
-                        checkpoint_progress.update(1)
-                        global_progress.update(1)
-
-                    # Reset this environment's episode
-                    active_episodes[i] = {'obs': [], 'action': [], 'reward': []}
-                    steps_in_episode[i] = 0
-
-                    # If we've collected enough episodes, break the loop
-                    if collected_episodes >= n_episodes:
-                        break
-
-            # Update obs for next step
-            obs = next_obs
-
-            # If we've collected enough episodes, break the loop
-            if collected_episodes >= n_episodes:
+            # Break if we've collected enough data
+            if saved_idx >= len_to_save:
                 break
 
-        checkpoint_progress.close()
+        pbar.close()
+
+        # Process collected data into zarr format
+        if recorded_obs and recorded_acs:
+            print("Converting collected data to dataset format...")
+            
+            # Concatenate all episodes
+            all_obs = np.concatenate(recorded_obs, axis=0)
+            all_actions = np.concatenate(recorded_acs, axis=0)
+            episode_ends = np.array(episode_ends)
+
+            print(f"Total observations: {all_obs.shape}")
+            print(f"Total actions: {all_actions.shape}")
+            print(f"Total episodes: {len(episode_ends)}")
+
+            # Convert to episode format for ReplayBuffer
+            episode_start = 0
+            for episode_end in episode_ends:
+                episode_length = episode_end - episode_start
+                
+                episode_obs = all_obs[episode_start:episode_end]
+                episode_actions = all_actions[episode_start:episode_end]
+                episode_rewards = np.ones((episode_length, 1))  # Placeholder rewards
+                
+                episode_data = {
+                    'obs': episode_obs,
+                    'action': episode_actions,
+                    'reward': episode_rewards,
+                    'obs_dim': np.full(episode_length, env.num_obs, dtype=np.int32),
+                    'action_dim': np.full(episode_length, env.num_actions, dtype=np.int32),
+                    'checkpoint_name': np.array([os.path.basename(checkpoint_path)] * episode_length, dtype=np.string_)
+                }
+                
+                buffer.add_episode(episode_data)
+                episode_start = episode_end
 
     global_progress.close()
 

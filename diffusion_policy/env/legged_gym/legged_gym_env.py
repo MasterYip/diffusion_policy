@@ -74,6 +74,7 @@ class LeggedGymEnv:
         self.num_obs = self.env.num_obs
         self.num_actions = self.env.num_actions
         self.device = self.env.device
+        self.max_episode_length = int(self.env.max_episode_length)
 
     def reset(self, env_ids=None) -> Tuple[torch.Tensor, Dict[str, Any]]:
         """Reset the environment.
