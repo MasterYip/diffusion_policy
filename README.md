@@ -148,8 +148,9 @@ python ./diffusion_policy/diffusion_policy/scripts/legged_gym_dataset_gen.py \
   --task_name "elspider_air_flat" \
   --n_episodes 4000 \
   --episode_steps 500 \
+  --n_obs_steps 8 \
   --num_envs 1000 \
-  --headless
+  --headless \
 ```
 
 #### **Train Legged Gym Diffusion Policy Transformer**
@@ -176,7 +177,7 @@ hydra.run.dir='data/outputs/2025.04.17/17.48.17_train_diffusion_transformer_lowd
 
 ```bash
 python eval.py \
---checkpoint data/outputs/2025.11.25/17.05.49_train_diffusion_transformer_lowdim_legged_gym_lowdim/checkpoints/latest.ckpt \
+--checkpoint data/outputs/2025.11.26/15.23.13_train_diffusion_transformer_lowdim_legged_gym_lowdim/checkpoints/latest.ckpt \
 --output_dir data/legged_gym_output \
 --device cuda:0 \
 --max_steps 5000 \
@@ -217,7 +218,7 @@ hydra.run.dir='data/outputs/2025.04.01/20.19.36_train_diffusion_transformer_lowd
 
 ```bash
 python eval.py \
---checkpoint data/outputs/2025.11.25/09.09.35_train_diffusion_transformer_lowdim_legged_gym_lowdim/checkpoints/latest.ckpt \
+--checkpoint data/outputs/2025.11.26/17.10.58_train_diffusion_transformer_lowdim_legged_gym_lowdim/checkpoints/latest.ckpt \
 --output_dir data/legged_gym_output \
 --device cuda:0 \
 --max_steps 5000

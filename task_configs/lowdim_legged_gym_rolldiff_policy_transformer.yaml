@@ -32,16 +32,16 @@ logging:
   project: diffusion_policy_legged_gym
   resume: true
   tags:
-  - train_diffusion_transformer_lowdim
+  - train_rolldiff_transformer_lowdim
   - legged_gym
   - locomotion
 multi_run:
-  run_dir: data/outputs/${now:%Y.%m.%d}/${now:%H.%M.%S}_train_diffusion_transformer_lowdim_legged_gym
-  wandb_name_base: ${now:%Y.%m.%d}-${now:%H.%M.%S}_train_diffusion_transformer_lowdim_legged_gym
+  run_dir: data/outputs/${now:%Y.%m.%d}/${now:%H.%M.%S}_train_rolldiff_transformer_lowdim_legged_gym
+  wandb_name_base: ${now:%Y.%m.%d}-${now:%H.%M.%S}_train_rolldiff_transformer_lowdim_legged_gym
 n_action_steps: 4  # Action prediction horizon
 n_latency_steps: 0
 n_obs_steps: 8  # Number of observation steps to condition on
-name: train_diffusion_transformer_lowdim
+name: train_rolldiff_transformer_lowdim
 obs_as_cond: true
 obs_dim: 66  # Typical observation dimension for legged robots
 optimizer:
