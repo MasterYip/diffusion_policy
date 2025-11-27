@@ -47,6 +47,7 @@ class LeggedGymRunner(BaseLowdimRunner):
                  n_envs: int = 4,
                  headless: bool = True,
                  device: Optional[str] = None,
+                 realtime_mode: bool = False,  # Add realtime mode option
                  ):
         """
         Initialize the LeggedGymRunner.
@@ -69,6 +70,7 @@ class LeggedGymRunner(BaseLowdimRunner):
             n_envs: Number of parallel environments
             headless: If True, disable visualization
             device: Device to run on (if None, use policy device)
+            realtime_mode: If True, run in realtime with timing constraints
         """
         super().__init__(output_dir)
 
@@ -82,6 +84,7 @@ class LeggedGymRunner(BaseLowdimRunner):
         self.device = device
         self.n_envs = n_envs
         self.headless = headless
+        self.realtime_mode = realtime_mode
 
         # Environment will be created when run is called to avoid
         # creating it for validation/testing during training
@@ -149,8 +152,22 @@ class LeggedGymRunner(BaseLowdimRunner):
         episode_rewards = []
         current_episode_rewards = torch.zeros(self.env.num_envs, device=device)
 
+        # Realtime management variables
+        realtime_factor_window = []
+        realtime_factor_window_size = 50
+        last_print_time = time.time()
+        print_interval = 2.0  # Print realtime factor every 2 seconds
+        env_dt = getattr(self.env, 'dt', 0.02)  # Default to 20ms if dt not available
+        
+        if self.realtime_mode:
+            print(f"Running in realtime mode (target dt={env_dt:.4f}s)")
+        else:
+            print("Running at maximum speed (no realtime constraints)")
+
         step_count = 0
         while step_count < self.max_steps:
+            step_start_time = time.time()
+            
             # Prepare observations for policy - USE DELAYED INPUTS like cyber_runner
             obs_dict = {"obs": state_history[:, -policy.n_obs_steps-1:-1, :]}
 
@@ -203,6 +220,35 @@ class LeggedGymRunner(BaseLowdimRunner):
 
             # Update progress bar by number of action steps taken
             pbar.update(action.shape[1])
+            
+            # Realtime management
+            if self.realtime_mode:
+                step_end_time = time.time()
+                step_duration = step_end_time - step_start_time
+                
+                # Calculate realtime factor
+                realtime_factor = env_dt / step_duration if step_duration > 0 else float('inf')
+                realtime_factor_window.append(realtime_factor)
+                
+                # Maintain window size
+                if len(realtime_factor_window) > realtime_factor_window_size:
+                    realtime_factor_window.pop(0)
+                
+                # Print realtime factor periodically
+                current_time = time.time()
+                if current_time - last_print_time >= print_interval:
+                    avg_realtime_factor = np.mean(realtime_factor_window)
+                    min_realtime_factor = np.min(realtime_factor_window)
+                    max_realtime_factor = np.max(realtime_factor_window)
+                    print(f"Step {step_count}: Realtime factor: {avg_realtime_factor:.2f}x "
+                          f"(min: {min_realtime_factor:.2f}x, max: {max_realtime_factor:.2f}x)")
+                    last_print_time = current_time
+                
+                # Sleep to maintain realtime if computation was faster than env_dt
+                sleep_time = env_dt - step_duration
+                if sleep_time > 0:
+                    time.sleep(sleep_time)
+            # If not realtime mode, run as fast as possible (no sleep)
 
         pbar.close()
 

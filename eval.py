@@ -72,6 +72,7 @@ def main(checkpoint, output_dir, device, max_steps, num_envs):
     env_runner = hydra.utils.instantiate(
         cfg.task.env_runner,
         output_dir=output_dir)
+    env_runner.realtime_mode = True
     runner_log = env_runner.run(policy)
 
     # dump log to json

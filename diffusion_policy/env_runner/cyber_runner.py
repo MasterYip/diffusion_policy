@@ -35,10 +35,12 @@ class LeggedRunner(BaseLowdimRunner):
                  tqdm_interval_sec=5.0,
                  n_envs=None,
                  device=None,
+                 realtime_mode=False,  # Add realtime mode option
                  ):
         super().__init__(output_dir)
 
         self.task = task
+        self.realtime_mode = realtime_mode
 
         env_cfg, train_cfg = task_registry.get_cfgs(name=self.task)
         # override some parameters for testing
@@ -95,6 +97,18 @@ class LeggedRunner(BaseLowdimRunner):
         len_to_save = 1200 if not generate_data else 500000
         print("length to save", len_to_save)
 
+        # Realtime management variables
+        realtime_factor_window = []
+        realtime_factor_window_size = 50
+        last_print_time = time.time()
+        print_interval = 2.0  # Print realtime factor every 2 seconds
+        env_dt = getattr(env, 'dt', 0.02)  # Default to 20ms if dt not available
+        
+        if self.realtime_mode:
+            print(f"Running in realtime mode (target dt={env_dt:.4f}s)")
+        else:
+            print("Running at maximum speed (no realtime constraints)")
+
         if save_zarr:
             if generate_data:
                 zroot = zarr.open_group("recorded_data_{}_{}.zarr".format(
@@ -133,6 +147,8 @@ class LeggedRunner(BaseLowdimRunner):
 
         action = torch.zeros((env.num_envs, 1, env.num_actions), dtype=torch.float32, device=device)
         while step > 0:
+            step_start_time = time.time()
+            
             step -= 1
             # run policy
             with torch.no_grad():
@@ -150,7 +166,8 @@ class LeggedRunner(BaseLowdimRunner):
                     t1 = time.perf_counter()
                     action_dict = policy.predict_action(obs_dict)
                     t2 = time.perf_counter()
-                    print("time spent diffusion step: ", t2-t1)
+                    if self.realtime_mode:
+                        print("time spent diffusion step: ", t2-t1)
 
                     pred_action = action_dict["action_pred"]
 
@@ -224,6 +241,35 @@ class LeggedRunner(BaseLowdimRunner):
                 pbar.update(action.shape[1])
             else:
                 pbar.update(env.num_envs)
+
+            # Realtime management
+            if self.realtime_mode:
+                step_end_time = time.time()
+                step_duration = step_end_time - step_start_time
+                
+                # Calculate realtime factor
+                realtime_factor = env_dt / step_duration if step_duration > 0 else float('inf')
+                realtime_factor_window.append(realtime_factor)
+                
+                # Maintain window size
+                if len(realtime_factor_window) > realtime_factor_window_size:
+                    realtime_factor_window.pop(0)
+                
+                # Print realtime factor periodically
+                current_time = time.time()
+                if current_time - last_print_time >= print_interval:
+                    avg_realtime_factor = np.mean(realtime_factor_window)
+                    min_realtime_factor = np.min(realtime_factor_window)
+                    max_realtime_factor = np.max(realtime_factor_window)
+                    print(f"Step {300-step}: Realtime factor: {avg_realtime_factor:.2f}x "
+                          f"(min: {min_realtime_factor:.2f}x, max: {max_realtime_factor:.2f}x)")
+                    last_print_time = current_time
+                
+                # Sleep to maintain realtime if computation was faster than env_dt
+                sleep_time = env_dt - step_duration
+                if sleep_time > 0:
+                    time.sleep(sleep_time)
+            # If not realtime mode, run as fast as possible (no sleep)
 
             if save_zarr and saved_idx >= len_to_save:
                 recorded_obs = np.concatenate(recorded_obs)
