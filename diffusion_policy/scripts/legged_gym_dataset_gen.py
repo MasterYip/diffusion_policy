@@ -236,79 +236,93 @@ def load_policy_from_checkpoint(checkpoint_path, task_name, env=None):
         print(f"Not a JIT checkpoint, loading normally...")
 
     # Try loading as a simple policy first
-    try:
-        print("Try loading as simple policy...")
-        policy = torch.load(checkpoint_path, map_location="cuda:0")
 
-        # Create wrapper for consistency
-        class RegularPolicyWrapper:
-            def __init__(self, policy, action_dim=None, obs_dim=None):
-                self.policy = policy
-                # Try to infer dimensions from the policy if possible
-                if hasattr(policy, 'num_actions'):
-                    self.action_dim = policy.num_actions
-                elif action_dim is not None:
-                    self.action_dim = action_dim
-                else:
-                    self.action_dim = env.num_actions if env else 18  # Default fallback
-                
-                if hasattr(policy, 'num_obs'):
-                    self.obs_dim = policy.num_obs
-                elif obs_dim is not None:
-                    self.obs_dim = obs_dim
-                else:
-                    self.obs_dim = env.num_obs if env else 66  # Default fallback
-                
-                # Determine device
-                if hasattr(policy, 'parameters'):
-                    try:
-                        self.device = next(policy.parameters()).device
-                    except StopIteration:
-                        self.device = torch.device("cuda:0")
-                else:
+    print("Try loading as simple policy...")
+    policy = torch.load(checkpoint_path, map_location="cuda:0")
+
+    if type(policy) == dict:
+        from rsl_rl.modules import ActorCritic
+        if 'model_state_dict' in policy:
+            # Reconstruct the ActorCritic model
+            model_state_dict = policy['model_state_dict']
+            actor_critic_params = {
+                'num_actor_obs': model_state_dict['actor.0.weight'].shape[1],
+                'num_critic_obs': model_state_dict['critic.0.weight'].shape[1],
+                'num_actions': 18,
+                'actor_hidden_dims': [128, 64, 32],
+                'critic_hidden_dims': [128, 64, 32]
+            }
+            policy_model = ActorCritic(**actor_critic_params)
+            policy_model.load_state_dict(model_state_dict)
+            policy = policy_model
+
+    # Create wrapper for consistency
+    class RegularPolicyWrapper:
+        def __init__(self, policy, action_dim=None, obs_dim=None):
+            self.policy = policy
+            # Try to infer dimensions from the policy if possible
+            if hasattr(policy, 'num_actions'):
+                self.action_dim = policy.num_actions
+            elif action_dim is not None:
+                self.action_dim = action_dim
+            else:
+                self.action_dim = env.num_actions if env else 18  # Default fallback
+            
+            if hasattr(policy, 'num_obs'):
+                self.obs_dim = policy.num_obs
+            elif obs_dim is not None:
+                self.obs_dim = obs_dim
+            else:
+                self.obs_dim = env.num_obs if env else 66  # Default fallback
+            
+            # Determine device
+            if hasattr(policy, 'parameters'):
+                try:
+                    self.device = next(policy.parameters()).device
+                except StopIteration:
                     self.device = torch.device("cuda:0")
-                
-                print(f"Policy loaded and running on device: {self.device}")
-                
-                # Set to eval mode if possible
-                if hasattr(policy, 'eval'):
-                    policy.eval()
+            else:
+                self.device = torch.device("cuda:0")
+            
+            print(f"Policy loaded and running on device: {self.device}")
+            
+            # Set to eval mode if possible
+            if hasattr(policy, 'eval'):
+                policy.eval()
 
-            def predict_action(self, obs):
-                # Ensure observations are on the same device as the policy
-                if isinstance(obs, torch.Tensor):
-                    if obs.device != self.device:
-                        obs = obs.to(self.device)
-                    
-                    # Try different policy call methods
-                    if hasattr(self.policy, 'act_inference'):
-                        return self.policy.act_inference(obs)
-                    elif hasattr(self.policy, 'act'):
-                        return self.policy.act(obs)
-                    elif callable(self.policy):
-                        return self.policy(obs)
-                    else:
-                        raise AttributeError("Policy has no callable method (act_inference, act, or __call__)")
+        def predict_action(self, obs):
+            # Ensure observations are on the same device as the policy
+            if isinstance(obs, torch.Tensor):
+                if obs.device != self.device:
+                    obs = obs.to(self.device)
+                
+                # Try different policy call methods
+                if hasattr(self.policy, 'act_inference'):
+                    return self.policy.act_inference(obs)
+                elif hasattr(self.policy, 'act'):
+                    return self.policy.act(obs)
+                elif callable(self.policy):
+                    return self.policy(obs)
                 else:
-                    # Convert to tensor if not already
-                    obs_tensor = torch.as_tensor(obs, device=self.device)
-                    return self.predict_action(obs_tensor)
+                    raise AttributeError("Policy has no callable method (act_inference, act, or __call__)")
+            else:
+                # Convert to tensor if not already
+                obs_tensor = torch.as_tensor(obs, device=self.device)
+                return self.predict_action(obs_tensor)
 
-            def __call__(self, obs):
-                return self.predict_action(obs)
+        def __call__(self, obs):
+            return self.predict_action(obs)
 
-            def reset(self):
-                # Reset the policy state if it's stateful
-                if hasattr(self.policy, 'reset'):
-                    self.policy.reset()
+        def reset(self):
+            # Reset the policy state if it's stateful
+            if hasattr(self.policy, 'reset'):
+                self.policy.reset()
 
-        # Create the wrapped policy
-        wrapped_policy = RegularPolicyWrapper(policy, env.num_actions if env else None, env.num_obs if env else None)
-        print(f"Successfully loaded simple policy from {checkpoint_path}")
-        return wrapped_policy
+    # Create the wrapped policy
+    wrapped_policy = RegularPolicyWrapper(policy, env.num_actions if env else None, env.num_obs if env else None)
+    print(f"Successfully loaded simple policy from {checkpoint_path}")
+    return wrapped_policy
         
-    except Exception as simple_load_error:
-        print(f"Not a simple policy, trying checkpoint loading: {simple_load_error}")
 
 
 
