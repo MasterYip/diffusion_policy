@@ -226,8 +226,7 @@ def main(output, checkpoints, task_name, n_episodes, episode_steps,
 
 def load_policy_from_checkpoint(checkpoint_path, task_name, env=None):
     """
-    Load a policy from a checkpoint file using the legged gym task registry system.
-    This mimics the policy loading approach used in play.py.
+    Load a policy from a checkpoint file using a direct approach without full runner instantiation.
     """
     try:
         print("Try Loading JIT checkpoint...")
@@ -236,53 +235,80 @@ def load_policy_from_checkpoint(checkpoint_path, task_name, env=None):
     except Exception as e:
         print(f"Not a JIT checkpoint, loading normally...")
 
-    # Get the directory containing the checkpoint
-    checkpoint_dir = os.path.dirname(os.path.dirname(os.path.dirname(checkpoint_path)))
-    experiment_name = os.path.basename(os.path.dirname(os.path.dirname(checkpoint_path)))
+    # Try loading as a simple policy first
+    try:
+        print("Try loading as simple policy...")
+        policy = torch.load(checkpoint_path, map_location="cuda:0")
 
-    # Create dummy args for loading
-    from legged_gym.utils import get_default_args
-    args = get_default_args()
-    args.task = task_name  # This will be overridden by the checkpoint
-    args.headless = True
-    args.num_envs = env.num_envs if env else 1
+        # Create wrapper for consistency
+        class RegularPolicyWrapper:
+            def __init__(self, policy, action_dim=None, obs_dim=None):
+                self.policy = policy
+                # Try to infer dimensions from the policy if possible
+                if hasattr(policy, 'num_actions'):
+                    self.action_dim = policy.num_actions
+                elif action_dim is not None:
+                    self.action_dim = action_dim
+                else:
+                    self.action_dim = env.num_actions if env else 18  # Default fallback
+                
+                if hasattr(policy, 'num_obs'):
+                    self.obs_dim = policy.num_obs
+                elif obs_dim is not None:
+                    self.obs_dim = obs_dim
+                else:
+                    self.obs_dim = env.num_obs if env else 66  # Default fallback
+                
+                # Determine device
+                if hasattr(policy, 'parameters'):
+                    try:
+                        self.device = next(policy.parameters()).device
+                    except StopIteration:
+                        self.device = torch.device("cuda:0")
+                else:
+                    self.device = torch.device("cuda:0")
+                
+                print(f"Policy loaded and running on device: {self.device}")
+                
+                # Set to eval mode if possible
+                if hasattr(policy, 'eval'):
+                    policy.eval()
 
-    # We need the environment config for creating the runner
-    from legged_gym.utils import task_registry
-    env_cfg, train_cfg = task_registry.get_cfgs(name=args.task)
+            def predict_action(self, obs):
+                # Ensure observations are on the same device as the policy
+                if isinstance(obs, torch.Tensor):
+                    if obs.device != self.device:
+                        obs = obs.to(self.device)
+                    
+                    # Try different policy call methods
+                    if hasattr(self.policy, 'act_inference'):
+                        return self.policy.act_inference(obs)
+                    elif hasattr(self.policy, 'act'):
+                        return self.policy.act(obs)
+                    elif callable(self.policy):
+                        return self.policy(obs)
+                    else:
+                        raise AttributeError("Policy has no callable method (act_inference, act, or __call__)")
+                else:
+                    # Convert to tensor if not already
+                    obs_tensor = torch.as_tensor(obs, device=self.device)
+                    return self.predict_action(obs_tensor)
 
-    # Override training config to load from the specified checkpoint
-    train_cfg.runner.resume = True
-    # train_cfg.runner.load_run = checkpoint_dir
+            def __call__(self, obs):
+                return self.predict_action(obs)
 
-    # Extract checkpoint number from filename if it follows the pattern model_X.pt
-    checkpoint_name = os.path.basename(checkpoint_path)
-    if checkpoint_name.startswith("model_") and checkpoint_name.endswith(".pt"):
-        checkpoint_num = int(checkpoint_name[6:-3])
-        train_cfg.runner.checkpoint = checkpoint_num
+            def reset(self):
+                # Reset the policy state if it's stateful
+                if hasattr(self.policy, 'reset'):
+                    self.policy.reset()
 
-    # Use the existing env instead of creating a temporary one
-    if env is None:
-        raise ValueError("Environment must be provided to load policy")
-
-    # Create the algorithm runner using the existing environment
-    ppo_runner, _ = task_registry.make_alg_runner(
-        env=env,
-        name=args.task,
-        args=args,
-        train_cfg=train_cfg,
-        log_root=None  # Avoid creating logs during dataset generation
-    )
-
-    # Get the inference policy
-    policy = ppo_runner.get_inference_policy(device=env.device)
-
-    # Set dimensions for reference
-    policy.obs_dim = env.num_obs
-    policy.action_dim = env.num_actions
-
-    print(f"Successfully loaded policy from checkpoint {checkpoint_path}")
-    return policy
+        # Create the wrapped policy
+        wrapped_policy = RegularPolicyWrapper(policy, env.num_actions if env else None, env.num_obs if env else None)
+        print(f"Successfully loaded simple policy from {checkpoint_path}")
+        return wrapped_policy
+        
+    except Exception as simple_load_error:
+        print(f"Not a simple policy, trying checkpoint loading: {simple_load_error}")
 
 
 
