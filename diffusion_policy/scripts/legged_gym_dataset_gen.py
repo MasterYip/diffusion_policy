@@ -75,12 +75,8 @@ def main(output, checkpoints, task_name, n_episodes, episode_steps,
         print(f"Processing checkpoint: {checkpoint_path}")
 
         # Load policy from checkpoint
-        try:
-            policy = load_policy_from_checkpoint(checkpoint_path, task_name)
-            print(f"Loaded policy with shape - Obs: {policy.obs_dim}, Action: {policy.action_dim}")
-        except Exception as e:
-            print(f"Error loading checkpoint {checkpoint_path}: {e}")
-            continue
+        policy = load_policy_from_checkpoint(checkpoint_path, task_name, env=env.env)
+        print(f"Loaded policy with shape - Obs: {policy.obs_dim}, Action: {policy.action_dim}")
 
         device = env.device
         dtype = torch.float32
@@ -228,68 +224,66 @@ def main(output, checkpoints, task_name, n_episodes, episode_steps,
     print(f"Dataset generation complete. Total episodes: {buffer.n_episodes}")
 
 
-def load_policy_from_checkpoint(checkpoint_path, task_name):
+def load_policy_from_checkpoint(checkpoint_path, task_name, env=None):
     """
     Load a policy from a checkpoint file using the legged gym task registry system.
     This mimics the policy loading approach used in play.py.
     """
     try:
-        # Get the directory containing the checkpoint
-        checkpoint_dir = os.path.dirname(os.path.dirname(os.path.dirname(checkpoint_path)))
-        experiment_name = os.path.basename(os.path.dirname(os.path.dirname(checkpoint_path)))
-
-        # Create dummy args for loading
-        from legged_gym.utils import get_default_args
-        args = get_default_args()
-        args.task = task_name  # This will be overridden by the checkpoint
-        args.headless = True
-        args.num_envs = 1  # Just need one env for loading the policy
-
-        # We need a dummy environment to load the policy
-        # We'll create a minimal env just for policy loading
-        from legged_gym.utils import task_registry
-        env_cfg, train_cfg = task_registry.get_cfgs(name=args.task)
-
-        # Override training config to load from the specified checkpoint
-        train_cfg.runner.resume = True
-        train_cfg.runner.load_run = checkpoint_dir
-
-        # Extract checkpoint number from filename if it follows the pattern model_X.pt
-        checkpoint_name = os.path.basename(checkpoint_path)
-        if checkpoint_name.startswith("model_") and checkpoint_name.endswith(".pt"):
-            print("Loading training checkpoint...")
-            checkpoint_num = int(checkpoint_name[6:-3])
-            train_cfg.runner.checkpoint = checkpoint_num
-        else:
-            print("Loading JIT checkpoint...")
-            # This is an exported policy, which requires a different loading approach
-            return load_exported_policy(checkpoint_path)
-
-        # Create a temporary env just for loading the policy
-        temp_env, _ = task_registry.make_env(name=args.task, args=args, env_cfg=env_cfg)
-
-        # Create the algorithm runner
-        ppo_runner, _ = task_registry.make_alg_runner(
-            env=temp_env,
-            name=args.task,
-            args=args,
-            train_cfg=train_cfg,
-            log_root=None  # Avoid creating logs during dataset generation
-        )
-
-        # Get the inference policy
-        policy = ppo_runner.get_inference_policy(device=temp_env.device)
-
-        # Set dimensions for reference
-        policy.obs_dim = temp_env.num_obs
-        policy.action_dim = temp_env.num_actions
-
-        print(f"Successfully loaded policy from checkpoint {checkpoint_path}")
-        return policy
-
+        print("Try Loading JIT checkpoint...")
+        # This is an exported policy, which requires a different loading approach
+        return load_exported_policy(checkpoint_path)
     except Exception as e:
-        print(f"Error loading policy from checkpoint: {str(e)}")
-        raise e
+        print(f"Not a JIT checkpoint, loading normally...")
+
+    # Get the directory containing the checkpoint
+    checkpoint_dir = os.path.dirname(os.path.dirname(os.path.dirname(checkpoint_path)))
+    experiment_name = os.path.basename(os.path.dirname(os.path.dirname(checkpoint_path)))
+
+    # Create dummy args for loading
+    from legged_gym.utils import get_default_args
+    args = get_default_args()
+    args.task = task_name  # This will be overridden by the checkpoint
+    args.headless = True
+    args.num_envs = env.num_envs if env else 1
+
+    # We need the environment config for creating the runner
+    from legged_gym.utils import task_registry
+    env_cfg, train_cfg = task_registry.get_cfgs(name=args.task)
+
+    # Override training config to load from the specified checkpoint
+    train_cfg.runner.resume = True
+    # train_cfg.runner.load_run = checkpoint_dir
+
+    # Extract checkpoint number from filename if it follows the pattern model_X.pt
+    checkpoint_name = os.path.basename(checkpoint_path)
+    if checkpoint_name.startswith("model_") and checkpoint_name.endswith(".pt"):
+        checkpoint_num = int(checkpoint_name[6:-3])
+        train_cfg.runner.checkpoint = checkpoint_num
+
+    # Use the existing env instead of creating a temporary one
+    if env is None:
+        raise ValueError("Environment must be provided to load policy")
+
+    # Create the algorithm runner using the existing environment
+    ppo_runner, _ = task_registry.make_alg_runner(
+        env=env,
+        name=args.task,
+        args=args,
+        train_cfg=train_cfg,
+        log_root=None  # Avoid creating logs during dataset generation
+    )
+
+    # Get the inference policy
+    policy = ppo_runner.get_inference_policy(device=env.device)
+
+    # Set dimensions for reference
+    policy.obs_dim = env.num_obs
+    policy.action_dim = env.num_actions
+
+    print(f"Successfully loaded policy from checkpoint {checkpoint_path}")
+    return policy
+
 
 
 def load_exported_policy(checkpoint_path):
