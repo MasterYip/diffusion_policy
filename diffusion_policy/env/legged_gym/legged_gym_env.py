@@ -3,8 +3,8 @@ Author: Raymon Yip 2205929492@qq.com
 Date: 2025-03-29 19:20:16
 Description: file content
 FilePath: /PredictiveDiffusionPlanner_Dev/diffusion_policy/diffusion_policy/env/legged_gym/legged_gym_env.py
-LastEditTime: 2025-03-30 17:03:51
-LastEditors: Raymon Yip
+LastEditTime: 2025-12-09 11:16:16
+LastEditors: yip-HexLab-4090
 '''
 # autopep8: off
 from legged_gym import LEGGED_GYM_ROOT_DIR
@@ -68,7 +68,11 @@ class LeggedGymEnv:
 
         # Create the environment
         self.env, self.env_cfg = task_registry.make_env(name=args.task, args=args)
-
+        self.env_cfg.terrain.curriculum = False
+        self.env_cfg.noise.add_noise = False
+        self.env_cfg.domain_rand.randomize_friction = False
+        self.env_cfg.domain_rand.push_robots = False
+        
         # Store attributes
         self.num_envs = self.env.num_envs
         self.num_obs = self.env.num_obs

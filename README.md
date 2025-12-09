@@ -155,6 +155,8 @@ python ./diffusion_policy/diffusion_policy/scripts/legged_gym_dataset_gen.py \
 
 #### **Train Legged Gym Diffusion Policy Transformer**
 
+> **NOTE**: Diffusion Policy can walk when `train_loss<0.03`, about 150eps.
+
 ```bash
 python train.py \
 --config-dir=task_configs \
@@ -177,7 +179,7 @@ hydra.run.dir='data/outputs/2025.04.17/17.48.17_train_diffusion_transformer_lowd
 
 ```bash
 python eval.py \
---checkpoint data/outputs/2025.11.26/15.23.13_train_diffusion_transformer_lowdim_legged_gym_lowdim/checkpoints/latest.ckpt \
+--checkpoint data/outputs/2025.12.08/11.36.38_train_diffusion_transformer_lowdim_legged_gym_lowdim/checkpoints/latest.ckpt \
 --output_dir data/legged_gym_output \
 --device cuda:0 \
 --max_steps 5000 \
